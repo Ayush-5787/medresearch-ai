@@ -92,4 +92,35 @@ class SearchResult(BaseModel):
     agent_trace: List[AgentStep] = Field(default_factory=list)
 
 
-print("[schemas] Loaded data models: Source, Claim, AgentStep, ResearchAnswer, SearchResult")
+
+# ============================================================
+# ISSUE — A single issue found by the Critic
+# ============================================================
+
+class Issue(BaseModel):
+    """A single issue found by the Critic Agent."""
+    
+    type: str = Field(..., description="Issue category: HALLUCINATION, MISSING_CITATION, OFF_TOPIC, etc.")
+    severity: str = Field(..., description="CRITICAL | MAJOR | MINOR")
+    sentence_index: Optional[int] = Field(default=None, description="Which sentence (0-indexed)")
+    description: str = Field(..., description="What's wrong")
+    suggested_fix: str = Field(default="", description="How to fix it")
+    draft_snippet: str = Field(default="", description="Evidence from the draft")
+    source_snippet: str = Field(default="", description="Evidence from the source")
+
+
+# ============================================================
+# CRITIQUE — Output of the Critic Agent
+# ============================================================
+
+class Critique(BaseModel):
+    """Output of the Critic Agent's evaluation."""
+    
+    status: str = Field(..., description="PASS | REVISE | BLOCK")
+    overall_score: float = Field(default=1.0, ge=0.0, le=1.0)
+    issues: List[Issue] = Field(default_factory=list)
+    reasoning_summary: str = Field(default="")
+    metrics: dict = Field(default_factory=dict)
+
+
+print("[schemas] Loaded data models: Source, Claim, AgentStep, ResearchAnswer, SearchResult, Issue, Critique")
