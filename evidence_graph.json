@@ -1,0 +1,363 @@
+{
+  "nodes": [
+    {
+      "id": "claim_1",
+      "type": "claim",
+      "label": "Claim 1",
+      "text": "Metformin Hydrochloride Tablet is indicated as an adjunct to diet and exercise to improve glycemic control in adults and pediatric patients 10 years of age and older with type 2 diabetes mellitus.",
+      "url": "",
+      "confidence": 0.96,
+      "verified": false
+    },
+    {
+      "id": "claim_2",
+      "type": "claim",
+      "label": "Claim 2",
+      "text": "Metformin Hydrochloride Tablets should not be used in patients with an estimated glomerular filtration rate below 30 mL/min/1.73 m².",
+      "url": "",
+      "confidence": 0.96,
+      "verified": false
+    },
+    {
+      "id": "claim_3",
+      "type": "claim",
+      "label": "Claim 3",
+      "text": "Metformin is prescribed worldwide to over 120 million individuals with type-2 diabetes.",
+      "url": "",
+      "confidence": 0.96,
+      "verified": false
+    },
+    {
+      "id": "claim_4",
+      "type": "claim",
+      "label": "Claim 4",
+      "text": "Metformin is a widely used drug for the treatment of type 2 diabetes mellitus with a known ability to lower blood glucose levels.",
+      "url": "",
+      "confidence": 0.96,
+      "verified": false
+    },
+    {
+      "id": "claim_5",
+      "type": "claim",
+      "label": "Claim 5",
+      "text": "Metformin hydrochloride can cause a rare but serious side effect called lactic acidosis, which can be fatal.",
+      "url": "",
+      "confidence": 0.95,
+      "verified": false
+    },
+    {
+      "id": "claim_6",
+      "type": "claim",
+      "label": "Claim 6",
+      "text": "Lactic acidosis is a medical emergency that must be treated in a hospital.",
+      "url": "",
+      "confidence": 0.95,
+      "verified": false
+    },
+    {
+      "id": "claim_7",
+      "type": "claim",
+      "label": "Claim 7",
+      "text": "People whose kidneys are not working properly should not take metformin hydrochloride extended-release tablets.",
+      "url": "",
+      "confidence": 0.95,
+      "verified": false
+    },
+    {
+      "id": "claim_8",
+      "type": "claim",
+      "label": "Claim 8",
+      "text": "Metformin hydrochloride extended-release tablets are used with diet and exercise to help control high blood sugar in adults and children 10 years of age and older with type 2 diabetes.",
+      "url": "",
+      "confidence": 0.95,
+      "verified": false
+    },
+    {
+      "id": "claim_9",
+      "type": "claim",
+      "label": "Claim 9",
+      "text": "Metformin hydrochloride extended-release tablets are not for people with type 1 diabetes.",
+      "url": "",
+      "confidence": 0.95,
+      "verified": false
+    },
+    {
+      "id": "claim_10",
+      "type": "claim",
+      "label": "Claim 10",
+      "text": "Postmarketing cases of metformin-associated lactic acidosis have resulted in death, hypothermia, hypotension, and resistant bradyarrhythmias.",
+      "url": "",
+      "confidence": 0.95,
+      "verified": false
+    },
+    {
+      "id": "claim_11",
+      "type": "claim",
+      "label": "Claim 11",
+      "text": "Risk factors for metformin-associated lactic acidosis include renal impairment, concomitant use of certain drugs, age over 65 years, radiological studies with contrast, surgery, hypoxic states, excessive alcohol intake, and hepatic impairment.",
+      "url": "",
+      "confidence": 0.95,
+      "verified": false
+    },
+    {
+      "id": "claim_12",
+      "type": "claim",
+      "label": "Claim 12",
+      "text": "Tamoxifen is the only drug approved for reduction of breast cancer risk in premenopausal women.",
+      "url": "",
+      "confidence": 0.95,
+      "verified": false
+    },
+    {
+      "id": "claim_13",
+      "type": "claim",
+      "label": "Claim 13",
+      "text": "Metformin's licensed uses include treatment of type 2 diabetes mellitus (T2DM).",
+      "url": "",
+      "confidence": 0.95,
+      "verified": false
+    },
+    {
+      "id": "claim_14",
+      "type": "claim",
+      "label": "Claim 14",
+      "text": "Glucocorticoids have powerful anti-inflammatory and immunomodulatory effects.",
+      "url": "",
+      "confidence": 0.95,
+      "verified": false
+    },
+    {
+      "id": "claim_15",
+      "type": "claim",
+      "label": "Claim 15",
+      "text": "Metformin Hydrochloride Tablets may need to be discontinued at the time of, or prior to, iodinated contrast imaging procedures.",
+      "url": "",
+      "confidence": 0.94,
+      "verified": false
+    },
+    {
+      "id": "claim_16",
+      "type": "claim",
+      "label": "Claim 16",
+      "text": "Metformin lowers circulating insulin.",
+      "url": "",
+      "confidence": 0.94,
+      "verified": false
+    },
+    {
+      "id": "claim_17",
+      "type": "claim",
+      "label": "Claim 17",
+      "text": "Chronic use of glucocorticoids can cause hyperglycemia, type 2 diabetes mellitus, hepatic steatosis, obesity, and other complications due to their metabolic actions.",
+      "url": "",
+      "confidence": 0.94,
+      "verified": false
+    },
+    {
+      "id": "claim_18",
+      "type": "claim",
+      "label": "Claim 18",
+      "text": "Metformin inhibits complex I of the mitochondrial electron transport chain, crucial gluconeogenic enzymes, and fatty acid synthesis, leading to a significant improvement in glucose tolerance and maintenance of insulin sensitivity during glucocorticoid treatment.",
+      "url": "",
+      "confidence": 0.93,
+      "verified": false
+    },
+    {
+      "id": "claim_19",
+      "type": "claim",
+      "label": "Claim 19",
+      "text": "Metformin is safe during pregnancy.",
+      "url": "",
+      "confidence": 0.92,
+      "verified": false
+    },
+    {
+      "id": "claim_20",
+      "type": "claim",
+      "label": "Claim 20",
+      "text": "Three small randomized control trials have demonstrated that metformin can limit changes in glucose metabolism during treatment with prednisone.",
+      "url": "",
+      "confidence": 0.92,
+      "verified": false
+    },
+    {
+      "id": "source_1",
+      "type": "source",
+      "label": "Source 1",
+      "text": "",
+      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=542cec22-eeae-4704-9bb6-4176640e5ea8",
+      "confidence": 0.7,
+      "verified": false
+    },
+    {
+      "id": "source_2",
+      "type": "source",
+      "label": "Source 2",
+      "text": "",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/33194937/",
+      "confidence": 0.9,
+      "verified": false
+    },
+    {
+      "id": "source_3",
+      "type": "source",
+      "label": "Source 3",
+      "text": "",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/35525318/",
+      "confidence": 0.9,
+      "verified": false
+    },
+    {
+      "id": "source_4",
+      "type": "source",
+      "label": "Source 4",
+      "text": "",
+      "url": "https://dailymed.nlm.nih.gov/dailymed/medguide.cfm?setid=60142fb2-16da-4f54-a542-74f9a70b9c8b",
+      "confidence": 0.7,
+      "verified": false
+    },
+    {
+      "id": "source_5",
+      "type": "source",
+      "label": "Source 5",
+      "text": "",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/36575901/",
+      "confidence": 0.9,
+      "verified": false
+    }
+  ],
+  "links": [
+    {
+      "source": "claim_1",
+      "target": "source_1",
+      "relationship": "supported_by",
+      "verified": false
+    },
+    {
+      "source": "claim_2",
+      "target": "source_1",
+      "relationship": "supported_by",
+      "verified": false
+    },
+    {
+      "source": "claim_3",
+      "target": "source_2",
+      "relationship": "supported_by",
+      "verified": false
+    },
+    {
+      "source": "claim_4",
+      "target": "source_3",
+      "relationship": "supported_by",
+      "verified": false
+    },
+    {
+      "source": "claim_5",
+      "target": "source_4",
+      "relationship": "supported_by",
+      "verified": false
+    },
+    {
+      "source": "claim_6",
+      "target": "source_4",
+      "relationship": "supported_by",
+      "verified": false
+    },
+    {
+      "source": "claim_7",
+      "target": "source_4",
+      "relationship": "supported_by",
+      "verified": false
+    },
+    {
+      "source": "claim_8",
+      "target": "source_4",
+      "relationship": "supported_by",
+      "verified": false
+    },
+    {
+      "source": "claim_9",
+      "target": "source_4",
+      "relationship": "supported_by",
+      "verified": false
+    },
+    {
+      "source": "claim_10",
+      "target": "source_1",
+      "relationship": "supported_by",
+      "verified": false
+    },
+    {
+      "source": "claim_11",
+      "target": "source_1",
+      "relationship": "supported_by",
+      "verified": false
+    },
+    {
+      "source": "claim_12",
+      "target": "source_2",
+      "relationship": "supported_by",
+      "verified": false
+    },
+    {
+      "source": "claim_13",
+      "target": "source_5",
+      "relationship": "supported_by",
+      "verified": false
+    },
+    {
+      "source": "claim_14",
+      "target": "source_3",
+      "relationship": "supported_by",
+      "verified": false
+    },
+    {
+      "source": "claim_15",
+      "target": "source_1",
+      "relationship": "supported_by",
+      "verified": false
+    },
+    {
+      "source": "claim_16",
+      "target": "source_2",
+      "relationship": "supported_by",
+      "verified": false
+    },
+    {
+      "source": "claim_17",
+      "target": "source_3",
+      "relationship": "supported_by",
+      "verified": false
+    },
+    {
+      "source": "claim_18",
+      "target": "source_3",
+      "relationship": "supported_by",
+      "verified": false
+    },
+    {
+      "source": "claim_19",
+      "target": "source_2",
+      "relationship": "supported_by",
+      "verified": false
+    },
+    {
+      "source": "claim_20",
+      "target": "source_3",
+      "relationship": "supported_by",
+      "verified": false
+    }
+  ],
+  "stats": {
+    "total_claims": 20,
+    "total_sources": 5,
+    "total_edges": 20,
+    "avg_citations_per_claim": 1.0,
+    "avg_claims_per_source": 4.0,
+    "verified_edges": 0,
+    "verification_rate": 0.0,
+    "answer_length": 1570,
+    "overall_confidence": 0.983,
+    "status": "PASS"
+  }
+}

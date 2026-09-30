@@ -158,4 +158,113 @@ class VerificationReport(BaseModel):
     reasoning: str = Field(default="")
 
 
-print("[schemas] Loaded all models: Source, Claim, AgentStep, ResearchAnswer, SearchResult, Issue, Critique, VerificationResult, VerificationReport")
+# ============================================================
+# FINAL RESULT — Complete output of the full pipeline
+# ============================================================
+
+class FinalResult(BaseModel):
+    """The complete output of MedResearchPipeline."""
+    
+    question: str
+    answer: str = Field(default="")
+    claims: List[Claim] = Field(default_factory=list)
+    sources: List[Source] = Field(default_factory=list)
+    critique: Optional[Critique] = Field(default=None)
+    verification: Optional[VerificationReport] = Field(default=None)
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    status: str = Field(default="PENDING")
+    reasoning: str = Field(default="")
+    disclaimer: str = Field(default="")
+    agent_trace: List[AgentStep] = Field(default_factory=list)
+    total_duration_ms: int = Field(default=0)
+    stage_timings: dict = Field(default_factory=dict)
+
+
+# ============================================================
+# AUDIT RULE — A single governance rule check
+# ============================================================
+
+class AuditRule(BaseModel):
+    """A single governance rule result."""
+    
+    rule_id: str = Field(..., description="RULE_1, RULE_2, ...")
+    name: str = Field(..., description="Human-readable rule name")
+    passed: bool = Field(default=False)
+    actual_value: str = Field(default="")
+    threshold: str = Field(default="")
+    severity: str = Field(default="MAJOR", description="CRITICAL | MAJOR | MINOR")
+    message: str = Field(default="", description="Explanation if failed")
+
+
+# ============================================================
+# AUDIT REPORT — Output of the Audit Gate
+# ============================================================
+
+class AuditReport(BaseModel):
+    """Complete governance audit of a final result."""
+    
+    rules: List[AuditRule] = Field(default_factory=list)
+    rules_passed: int = Field(default=0)
+    rules_failed: int = Field(default=0)
+    critical_failures: int = Field(default=0)
+    decision: str = Field(default="PENDING", description="PASS | BLOCKED | REFUSED")
+    reasoning: str = Field(default="")
+    safe_to_display: bool = Field(default=False)
+
+
+# ============================================================
+# EVIDENCE GRAPH — Visualization data structure
+# ============================================================
+
+class GraphNode(BaseModel):
+    """A node in the evidence graph (claim or source)."""
+    
+    id: str
+    type: str  # "claim" | "source"
+    label: str = ""
+    # Claim-specific
+    text: str = ""
+    confidence: float = 0.0
+    verified: bool = False
+    # Source-specific
+    url: str = ""
+    source_type: str = ""
+    credibility_score: float = 0.0
+
+
+class GraphEdge(BaseModel):
+    """An edge in the evidence graph."""
+    
+    source_id: str  # from
+    target_id: str  # to
+    relationship: str = "supported_by"
+    verified: bool = False
+
+
+class EvidenceGraph(BaseModel):
+    """The complete evidence graph."""
+    
+    nodes: List[GraphNode] = Field(default_factory=list)
+    edges: List[GraphEdge] = Field(default_factory=list)
+    stats: dict = Field(default_factory=dict)
+
+
+# ============================================================
+# REFUSAL MESSAGE — What to show users when we can't answer
+# ============================================================
+
+class RefusalMessage(BaseModel):
+    """A clear, helpful refusal shown to users."""
+    
+    title: str = Field(default="I cannot answer this safely")
+    reason: str = Field(default="")
+    details: str = Field(default="")
+    level: str = Field(default="HARD", description="SOFT | HARD")
+    next_steps: List[str] = Field(default_factory=list)
+    trusted_sources: List[dict] = Field(default_factory=list)
+    emergency_note: str = Field(default="")
+    failed_rules: List[str] = Field(default_factory=list)
+    original_question: str = Field(default="")
+
+
+print("[schemas] Loaded all 17 models: Source, Claim, AgentStep, ResearchAnswer, SearchResult, Issue, Critique, VerificationResult, VerificationReport, FinalResult, AuditRule, AuditReport, GraphNode, GraphEdge, EvidenceGraph, RefusalMessage")
