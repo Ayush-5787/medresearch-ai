@@ -1,5 +1,0 @@
-[33me5531fc[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m Day 6: Revision Agent v2 — tiered architecture with patch-mode editing (no over-deletion)
-[33m23fd1a5[m Days 4-5: Add Writer + Critic Agents — 4-agent pipeline with quality control
-[33mdcd5759[m Day 3: Add Reader Agent — extract claims with citations from sources
-[33m7820864[m Day 2: Add Search Agent with PubMed + web search integration
-[33m7af35e0[m Day 1: Complete Step 1 — Core setup, LLM, search, scraper (all tests passing)
