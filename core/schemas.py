@@ -123,4 +123,39 @@ class Critique(BaseModel):
     metrics: dict = Field(default_factory=dict)
 
 
-print("[schemas] Loaded data models: Source, Claim, AgentStep, ResearchAnswer, SearchResult, Issue, Critique")
+# ============================================================
+# VERIFICATION RESULT — Verification of a single claim
+# ============================================================
+
+class VerificationResult(BaseModel):
+    """Result of verifying one claim against its source."""
+    
+    claim_index: int = Field(..., description="Index of the claim in the answer")
+    claim_text: str = Field(..., description="The claim being verified")
+    source_url: str = Field(default="", description="The source URL used")
+    verdict: str = Field(..., description="VERIFIED | PARTIALLY_VERIFIED | NOT_VERIFIED | CONTRADICTED")
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    evidence: str = Field(default="", description="Quote from source supporting the verdict")
+    reasoning: str = Field(default="", description="Explanation of the verdict")
+
+
+# ============================================================
+# VERIFICATION REPORT — Full report from the Verifier Agent
+# ============================================================
+
+class VerificationReport(BaseModel):
+    """Complete verification report for an answer."""
+    
+    results: List[VerificationResult] = Field(default_factory=list)
+    total_claims: int = Field(default=0)
+    verified_count: int = Field(default=0)
+    partial_count: int = Field(default=0)
+    not_verified_count: int = Field(default=0)
+    contradicted_count: int = Field(default=0)
+    verification_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    overall_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    verdict: str = Field(default="PENDING", description="PASS | REVIEW | FAIL")
+    reasoning: str = Field(default="")
+
+
+print("[schemas] Loaded all models: Source, Claim, AgentStep, ResearchAnswer, SearchResult, Issue, Critique, VerificationResult, VerificationReport")
