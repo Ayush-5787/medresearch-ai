@@ -11,3 +11,4 @@ numpy==1.26.4
 aiofiles==24.1.0
 pytest==8.3.3
 streamlit==1.39.0
+langdetect==1.0.9

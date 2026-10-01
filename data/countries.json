@@ -1,0 +1,95 @@
+{
+  "IN": {
+    "name": "India",
+    "languages": ["en", "hi", "ta", "bn", "mr", "te", "gu"],
+    "emergency": "108",
+    "trusted_sources": [
+      {"name": "ICMR", "url": "https://www.icmr.gov.in/", "why": "Indian Council of Medical Research"},
+      {"name": "AIIMS", "url": "https://www.aiims.edu/", "why": "All India Institute of Medical Sciences"},
+      {"name": "PubMed", "url": "https://pubmed.ncbi.nlm.nih.gov/", "why": "Global medical literature"}
+    ]
+  },
+  "US": {
+    "name": "United States",
+    "languages": ["en", "es"],
+    "emergency": "911",
+    "trusted_sources": [
+      {"name": "CDC", "url": "https://www.cdc.gov/", "why": "Centers for Disease Control"},
+      {"name": "NIH", "url": "https://www.nih.gov/", "why": "National Institutes of Health"},
+      {"name": "PubMed", "url": "https://pubmed.ncbi.nlm.nih.gov/", "why": "Global medical literature"}
+    ]
+  },
+  "GB": {
+    "name": "United Kingdom",
+    "languages": ["en"],
+    "emergency": "999",
+    "trusted_sources": [
+      {"name": "NHS", "url": "https://www.nhs.uk/", "why": "National Health Service"},
+      {"name": "PubMed", "url": "https://pubmed.ncbi.nlm.nih.gov/", "why": "Global medical literature"}
+    ]
+  },
+  "AU": {
+    "name": "Australia",
+    "languages": ["en"],
+    "emergency": "000",
+    "trusted_sources": [
+      {"name": "Health Direct", "url": "https://www.healthdirect.gov.au/", "why": "Australian health advice"},
+      {"name": "PubMed", "url": "https://pubmed.ncbi.nlm.nih.gov/", "why": "Global medical literature"}
+    ]
+  },
+  "CA": {
+    "name": "Canada",
+    "languages": ["en", "fr"],
+    "emergency": "911",
+    "trusted_sources": [
+      {"name": "Health Canada", "url": "https://www.canada.ca/en/health-canada.html", "why": "Canadian health department"},
+      {"name": "PubMed", "url": "https://pubmed.ncbi.nlm.nih.gov/", "why": "Global medical literature"}
+    ]
+  },
+  "DE": {
+    "name": "Germany",
+    "languages": ["de", "en"],
+    "emergency": "112",
+    "trusted_sources": [
+      {"name": "RKI", "url": "https://www.rki.de/", "why": "Robert Koch Institute"},
+      {"name": "PubMed", "url": "https://pubmed.ncbi.nlm.nih.gov/", "why": "Global medical literature"}
+    ]
+  },
+  "FR": {
+    "name": "France",
+    "languages": ["fr", "en"],
+    "emergency": "15",
+    "trusted_sources": [
+      {"name": "Santé Publique France", "url": "https://www.santepubliquefrance.fr/", "why": "French public health"},
+      {"name": "PubMed", "url": "https://pubmed.ncbi.nlm.nih.gov/", "why": "Global medical literature"}
+    ]
+  },
+  "JP": {
+    "name": "Japan",
+    "languages": ["ja", "en"],
+    "emergency": "119",
+    "trusted_sources": [
+      {"name": "MHLW", "url": "https://www.mhlw.go.jp/", "why": "Ministry of Health, Labour and Welfare"},
+      {"name": "PubMed", "url": "https://pubmed.ncbi.nlm.nih.gov/", "why": "Global medical literature"}
+    ]
+  },
+  "BR": {
+    "name": "Brazil",
+    "languages": ["pt", "en"],
+    "emergency": "192",
+    "trusted_sources": [
+      {"name": "Ministério da Saúde", "url": "https://www.gov.br/saude/", "why": "Brazilian Ministry of Health"},
+      {"name": "PubMed", "url": "https://pubmed.ncbi.nlm.nih.gov/", "why": "Global medical literature"}
+    ]
+  },
+  "DEFAULT": {
+    "name": "International",
+    "languages": ["en"],
+    "emergency": "112",
+    "trusted_sources": [
+      {"name": "WHO", "url": "https://www.who.int/", "why": "World Health Organization"},
+      {"name": "PubMed", "url": "https://pubmed.ncbi.nlm.nih.gov/", "why": "Global medical literature"},
+      {"name": "Mayo Clinic", "url": "https://www.mayoclinic.org/", "why": "Patient-friendly information"}
+    ]
+  }
+}
