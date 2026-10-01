@@ -28,7 +28,7 @@ from reports.pdf_generator import PDFReportGenerator
 
 st.set_page_config(
     page_title="MedResearch AI",
-    page_icon="🏥",
+    page_icon=str(Path(__file__).parent.parent / "docs" / "logo.png"),
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -74,7 +74,8 @@ lang_handler, country_handler, voice_handler, image_reader, pdf_generator = get_
 # ============================================================
 
 with st.sidebar:
-    st.markdown("### 🏥 MedResearch AI")
+    st.image(str(Path(__file__).parent.parent / "docs" / "logo.png"), width=120)
+    st.markdown("### MedResearch AI")
     st.markdown("---")
     st.markdown("**About**")
     st.markdown(
@@ -112,8 +113,12 @@ with st.sidebar:
 # HEADER
 # ============================================================
 
-st.markdown('<div class="main-header">🏥 MedResearch AI</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">Governed Multi-Agent Research System — 71 Languages, Voice, Image, PDF</div>', unsafe_allow_html=True)
+col_logo, col_title = st.columns([1, 8])
+with col_logo:
+    st.image(str(Path(__file__).parent.parent / "docs" / "logo.png"), width=80)
+with col_title:
+    st.markdown('<div class="main-header">MedResearch AI</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-header">Governed Multi-Agent Research System — 71 Languages, Voice, Image, PDF</div>', unsafe_allow_html=True)
 
 
 # ============================================================
