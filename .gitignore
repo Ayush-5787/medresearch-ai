@@ -50,7 +50,7 @@ htmlcov/
 test_report.pdf
 test_*.png
 test_*.mp3
-test_*.json
+test_report.json
 evidence_graph.json
 
 # Streamlit
