@@ -1,10 +1,11 @@
 """
-MedResearch AI — Streamlit UI (Multi-Language + Voice + Image)
+MedResearch AI — Streamlit UI (Multi-Language + Voice + Image + PDF)
 """
 
 import asyncio
 import streamlit as st
 import time
+from datetime import datetime
 from pathlib import Path
 import sys
 
@@ -18,6 +19,7 @@ from core.language import LanguageHandler
 from core.country import CountryConfig
 from core.voice import VoiceHandler
 from multimodal.image_reader import ImageReader
+from reports.pdf_generator import PDFReportGenerator
 
 
 # ============================================================
@@ -51,6 +53,7 @@ st.markdown("""
     .lang-country-box { background: #1a1a1a; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; }
     .voice-box { background: #0a1a2a; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; border: 1px solid #00d4ff; }
     .image-box { background: #0a2a1a; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; border: 1px solid #4ade80; }
+    .pdf-box { background: #2a1a0a; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; border: 1px solid #ffc107; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -61,9 +64,9 @@ st.markdown("""
 
 @st.cache_resource
 def get_handlers():
-    return LanguageHandler(), CountryConfig(), VoiceHandler(), ImageReader()
+    return LanguageHandler(), CountryConfig(), VoiceHandler(), ImageReader(), PDFReportGenerator()
 
-lang_handler, country_handler, voice_handler, image_reader = get_handlers()
+lang_handler, country_handler, voice_handler, image_reader, pdf_generator = get_handlers()
 
 
 # ============================================================
@@ -77,7 +80,7 @@ with st.sidebar:
     st.markdown(
         "A governed multi-agent research system that answers "
         "medical questions with traceable, verified citations. "
-        "Supports 71 languages, voice output, and image input."
+        "Supports 71 languages, voice output, image input, and PDF export."
     )
     st.markdown("---")
     st.markdown("**Pipeline**")
@@ -95,6 +98,7 @@ with st.sidebar:
     - 🌐 Multi-language (71 languages)
     - 🔊 Voice output (30 languages)
     - 📷 Image upload (OCR)
+    - 📄 PDF report download
     - 🛡️ Governance (6 rules)
     - ✅ Per-claim verification
     """)
@@ -109,7 +113,7 @@ with st.sidebar:
 # ============================================================
 
 st.markdown('<div class="main-header">🏥 MedResearch AI</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">Governed Multi-Agent Research System — 71 Languages, Voice, Image</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-header">Governed Multi-Agent Research System — 71 Languages, Voice, Image, PDF</div>', unsafe_allow_html=True)
 
 
 # ============================================================
@@ -151,7 +155,7 @@ if country_info:
 
 
 # ============================================================
-# IMAGE UPLOAD (NEW!)
+# IMAGE UPLOAD
 # ============================================================
 
 st.markdown("---")
@@ -174,7 +178,6 @@ with st.container():
         with col_text:
             with st.spinner("🔄 Extracting text from image..."):
                 image_bytes = uploaded_image.getvalue()
-                # Use Hindi + English OCR if user selected Hindi, else English
                 ocr_lang = "eng+hin" if selected_lang == "hi" else "eng"
                 result = image_reader.extract_text(image_bytes, lang=ocr_lang)
 
@@ -222,7 +225,6 @@ for i, (label, q) in enumerate(sample_questions):
 st.markdown("---")
 st.markdown("### ⌨️ Ask Your Question")
 
-# Priority: sample button > image text > default
 if clicked_question:
     default_q = clicked_question
 elif extracted_image_text:
@@ -343,6 +345,35 @@ if run_button and question:
                     if audio_bytes:
                         st.audio(audio_bytes, format="audio/mp3", autoplay=True)
 
+        # ==========================================================
+        # PDF DOWNLOAD
+        # ==========================================================
+        st.markdown("### 📄 Download Report")
+        st.caption("Download a professional PDF with the answer, sources, verification, and governance report.")
+
+        try:
+            pdf_bytes = pdf_generator.generate(
+                result,
+                audit_report,
+                language=selected_lang if selected_lang != "auto" else "en",
+                country=selected_country,
+            )
+
+            if pdf_bytes:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                st.download_button(
+                    label="📥 Download PDF Report",
+                    data=pdf_bytes,
+                    file_name=f"medresearch_report_{timestamp}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                )
+            else:
+                st.warning("⚠️ PDF generation failed. Please try again.")
+        except Exception as e:
+            st.warning(f"⚠️ PDF error: {str(e)[:100]}")
+
+        # ---------- VERIFICATION ----------
         with st.expander(f"📊 Verification Report ({result.verification.verified_count}/{result.verification.total_claims} verified)"):
             for v in result.verification.results:
                 icon = {"VERIFIED": "✅", "PARTIALLY_VERIFIED": "🟡", "NOT_VERIFIED": "🔴", "CONTRADICTED": "⚠️"}.get(v.verdict, "❓")
