@@ -1,5 +1,5 @@
 """
-MedResearch AI — Streamlit UI
+MedResearch AI — Streamlit UI (Multi-Language)
 The governed multi-agent research interface.
 """
 
@@ -16,6 +16,8 @@ from agents.orchestrator import MedResearchPipeline
 from governance.audit_gate import AuditGate
 from governance.refusal import RefusalBuilder
 from governance.evidence_graph import EvidenceGraphBuilder
+from core.language import LanguageHandler
+from core.country import CountryConfig
 
 
 # ============================================================
@@ -99,8 +101,28 @@ st.markdown("""
         text-transform: uppercase;
         letter-spacing: 1px;
     }
+    .lang-country-box {
+        background: #1a1a1a;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+    }
 </style>
 """, unsafe_allow_html=True)
+
+
+# ============================================================
+# INITIALIZE HANDLERS
+# ============================================================
+
+@st.cache_resource
+def get_handlers():
+    lang = LanguageHandler()
+    country = CountryConfig()
+    return lang, country
+
+
+lang_handler, country_handler = get_handlers()
 
 
 # ============================================================
@@ -114,7 +136,8 @@ with st.sidebar:
     st.markdown("**About**")
     st.markdown(
         "A governed multi-agent research system that answers "
-        "medical questions with traceable, verified citations."
+        "medical questions with traceable, verified citations. "
+        "Supports 71 languages."
     )
 
     st.markdown("---")
@@ -150,25 +173,74 @@ with st.sidebar:
 # ============================================================
 
 st.markdown('<div class="main-header">🏥 MedResearch AI</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">Governed Multi-Agent Research System</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-header">Governed Multi-Agent Research System — 71 Languages</div>', unsafe_allow_html=True)
 
 
 # ============================================================
-# SAMPLE QUESTIONS
+# LANGUAGE & COUNTRY SELECTORS
+# ============================================================
+
+st.markdown('<div class="lang-country-box">', unsafe_allow_html=True)
+
+col_lang, col_country, col_spacer = st.columns([1, 1, 2])
+
+with col_lang:
+    # Language options: Auto + all supported languages
+    languages = {"auto": "🌐 Auto-detect"}
+    for code, name in lang_handler.list_languages().items():
+        languages[code] = f"{name} ({code})"
+
+    selected_lang = st.selectbox(
+        "🌐 Language",
+        options=list(languages.keys()),
+        format_func=lambda x: languages[x],
+        index=0,
+        help="Auto-detect will use the language of your question",
+    )
+
+with col_country:
+    # Country options
+    countries = {"DEFAULT": "🌍 International"}
+    for c in country_handler.list_countries():
+        countries[c["code"]] = f"{c['name']} ({c['code']})"
+
+    selected_country = st.selectbox(
+        "🌍 Country",
+        options=list(countries.keys()),
+        format_func=lambda x: countries[x],
+        index=0,
+        help="Determines emergency number and trusted sources",
+    )
+
+st.markdown('</div>', unsafe_allow_html=True)
+
+# Show config for selected country
+country_info = country_handler.get(selected_country)
+if country_info:
+    st.caption(
+        f"📍 Emergency: **{country_info.get('emergency')}** · "
+        f"Sources: {', '.join(s['name'] for s in country_info.get('trusted_sources', [])[:3])}"
+    )
+
+
+# ============================================================
+# SAMPLE QUESTIONS (in different languages)
 # ============================================================
 
 st.markdown("**Try these questions:**")
-sample_cols = st.columns(3)
+
+sample_cols = st.columns(4)
 sample_questions = [
-    "What are the side effects of metformin?",
-    "How does aspirin affect heart health?",
-    "What are the symptoms of diabetes?",
+    ("🇬🇧 English", "What are the side effects of metformin?"),
+    ("🇮🇳 हिन्दी", "मेटफॉर्मिन के दुष्प्रभाव क्या हैं?"),
+    ("🇪🇸 Español", "¿Cuáles son los efectos secundarios de la metformina?"),
+    ("🇫🇷 Français", "Quels sont les effets secondaires de la metformine?"),
 ]
 
 clicked_question = None
-for i, q in enumerate(sample_questions):
+for i, (label, q) in enumerate(sample_questions):
     with sample_cols[i]:
-        if st.button(q, key=f"sample_{i}", use_container_width=True):
+        if st.button(label, key=f"sample_{i}", use_container_width=True):
             clicked_question = q
 
 
@@ -179,10 +251,11 @@ for i, q in enumerate(sample_questions):
 st.markdown("---")
 
 default_q = clicked_question or "What are the side effects of metformin?"
-question = st.text_input(
-    "🔎 Ask a medical question:",
+question = st.text_area(
+    "🔎 Ask a medical question (any language):",
     value=default_q,
-    placeholder="e.g., What are the side effects of metformin?",
+    height=80,
+    placeholder="e.g., What are the side effects of metformin? / मेटफॉर्मिन के दुष्प्रभाव क्या हैं?",
 )
 
 col1, col2, col3 = st.columns([1, 1, 3])
@@ -199,34 +272,26 @@ if clear_button:
 # PIPELINE EXECUTION
 # ============================================================
 
-async def run_pipeline(question: str):
-    """Run the full pipeline."""
+async def run_pipeline(question: str, language: str, country: str):
+    """Run the full multi-language pipeline."""
     pipeline = MedResearchPipeline()
-    return await pipeline.run(question, verbose=False)
+    return await pipeline.run(
+        question,
+        language=language,
+        country=country,
+        verbose=False,
+    )
 
 
 if run_button and question:
     st.markdown("---")
 
     with st.spinner("🔄 Running 6-agent pipeline... This takes ~2-3 minutes."):
-        stages = [
-            "🔍 Search Agent — finding sources...",
-            "📖 Reader Agent — extracting claims...",
-            "✍️ Writer Agent — drafting answer...",
-            "🔎 Critic Agent — reviewing quality...",
-            "🔧 Revision Agent — fixing issues...",
-            "✅ Verifier Agent — verifying claims...",
-        ]
-
-        start_time = time.time()
-
         try:
-            result = asyncio.run(run_pipeline(question))
+            result = asyncio.run(run_pipeline(question, selected_lang, selected_country))
         except Exception as e:
             st.error(f"Pipeline error: {e}")
             st.stop()
-
-    elapsed = time.time() - start_time
 
     # Run audit gate
     audit_gate = AuditGate()
@@ -247,6 +312,12 @@ if run_button and question:
         ("✅ Verifier Agent", f"{result.verification.verified_count}/{result.verification.total_claims} verified", result.stage_timings.get("verifier_ms", 0)),
     ]
 
+    # Add translation stages if present
+    if "translate_to_en_ms" in result.stage_timings:
+        timeline_data.insert(0, ("🌐 Translate → EN", "input translated", result.stage_timings["translate_to_en_ms"]))
+    if "translate_from_en_ms" in result.stage_timings:
+        timeline_data.append(("🌐 Translate ← back", "answer translated", result.stage_timings["translate_from_en_ms"]))
+
     for agent, detail, ms in timeline_data:
         st.markdown(
             f'<div class="agent-box">'
@@ -257,7 +328,7 @@ if run_button and question:
         )
 
     # ==========================================================
-    # STATUS METRICS
+    # METRICS
     # ==========================================================
 
     st.markdown("---")
@@ -296,7 +367,7 @@ if run_button and question:
         """, unsafe_allow_html=True)
 
     # ==========================================================
-    # DECISION PANEL
+    # DECISION
     # ==========================================================
 
     st.markdown("---")

@@ -1,11 +1,7 @@
 """
-MedResearch AI — Orchestrator
+MedResearch AI — Orchestrator (with Multi-Language Support)
 Coordinates the full 6-agent pipeline into one clean interface.
-
-Usage:
-    from agents.orchestrator import MedResearchPipeline
-    pipeline = MedResearchPipeline()
-    result = await pipeline.run("What are the side effects of metformin?")
+Supports questions in any language via auto-detection and translation.
 """
 
 import time
@@ -16,20 +12,19 @@ from agents.writer_agent import WriterAgent
 from agents.critic_agent import CriticAgent
 from agents.revision_agent import RevisionAgent
 from agents.verifier_agent import VerifierAgent
-from core.schemas import (
-    ResearchAnswer,
-    FinalResult,
-    VerificationReport,
-)
+from core.schemas import ResearchAnswer, FinalResult
+from core.language import LanguageHandler
+from core.country import CountryConfig
 
 
 class MedResearchPipeline:
     """
     The complete MedResearch AI pipeline.
-    Search → Read → Write → Critique → Revise → Verify.
+    Supports any language via auto-detect + translation.
     """
 
     def __init__(self):
+        # Agents
         self.search_agent = SearchAgent()
         self.reader_agent = ReaderAgent()
         self.writer_agent = WriterAgent()
@@ -37,8 +32,26 @@ class MedResearchPipeline:
         self.revision_agent = RevisionAgent()
         self.verifier_agent = VerifierAgent()
 
-    async def run(self, question: str, verbose: bool = True) -> FinalResult:
-        """Run the full pipeline on a question."""
+        # Multi-language support
+        self.language = LanguageHandler()
+        self.country = CountryConfig()
+
+    async def run(
+        self,
+        question: str,
+        language: str = "auto",
+        country: str = "DEFAULT",
+        verbose: bool = True,
+    ) -> FinalResult:
+        """
+        Run the full pipeline on a question (any language).
+
+        Args:
+            question: User question in any language
+            language: 'auto' for auto-detect, or ISO code like 'hi', 'en'
+            country: ISO country code like 'IN', 'US'
+            verbose: Print progress logs
+        """
         start_time = time.time()
         stage_timings = {}
 
@@ -49,13 +62,41 @@ class MedResearchPipeline:
         log("=" * 60)
         log("MEDRESEARCH PIPELINE START")
         log("=" * 60)
-        log(f"Question: {question}\n")
+
+        # ---------- LANGUAGE DETECTION ----------
+        log("\n[Language] Detecting...")
+        t = time.time()
+        detected_lang = (
+            self.language.detect_language(question)
+            if language == "auto"
+            else language
+        )
+        stage_timings["language_detect_ms"] = int((time.time() - t) * 1000)
+
+        lang_name = self.language.get_language_name(detected_lang)
+        log(f"[Language] Detected: {lang_name} ({detected_lang})")
+
+        # ---------- TRANSLATE TO ENGLISH ----------
+        english_question = question
+        if detected_lang != "en":
+            log(f"\n[Translation] {lang_name} → English...")
+            t = time.time()
+            english_question = self.language.translate_to_english(question, detected_lang)
+            stage_timings["translate_to_en_ms"] = int((time.time() - t) * 1000)
+            log(f"[Translation] → {english_question}")
+
+        log(f"\nQuestion: {english_question}")
+
+        # ---------- COUNTRY CONFIG ----------
+        country_info = self.country.get(country)
+        emergency = country_info.get("emergency", "112")
+        log(f"[Country] {country_info.get('name', country)} — emergency: {emergency}")
 
         # ---------- STAGE 1: SEARCH ----------
-        log("STAGE 1: Search")
+        log("\nSTAGE 1: Search")
         log("-" * 60)
         t = time.time()
-        search_result = await self.search_agent.run(question)
+        search_result = await self.search_agent.run(english_question)
         stage_timings["search_ms"] = int((time.time() - t) * 1000)
         log(f"Found {len(search_result.sources)} sources "
             f"({search_result.pubmed_count} PubMed, {search_result.web_count} web)\n")
@@ -72,7 +113,7 @@ class MedResearchPipeline:
         log("STAGE 3: Write")
         log("-" * 60)
         t = time.time()
-        answer = await self.writer_agent.run(question, claims)
+        answer = await self.writer_agent.run(english_question, claims)
         stage_timings["writer_ms"] = int((time.time() - t) * 1000)
         log(f"Drafted {len(answer.answer)} chars (confidence={answer.confidence:.2f})\n")
 
@@ -105,17 +146,26 @@ class MedResearchPipeline:
         log(f"Verification: {verification.verified_count}/{verification.total_claims} "
             f"({verification.verification_rate:.0%}) — {verification.verdict}\n")
 
+        # ---------- TRANSLATE BACK ----------
+        final_answer_text = revised.answer
+        if detected_lang != "en":
+            log(f"\n[Translation] English → {lang_name}...")
+            t = time.time()
+            final_answer_text = self.language.translate_from_english(
+                revised.answer, detected_lang
+            )
+            stage_timings["translate_from_en_ms"] = int((time.time() - t) * 1000)
+            log(f"[Translation] Done ({len(final_answer_text)} chars)")
+
         # ---------- BUILD FINAL RESULT ----------
         total_ms = int((time.time() - start_time) * 1000)
 
-        # Compute final confidence: weight critique + verification
         final_confidence = (
             0.4 * critique.overall_score
             + 0.4 * verification.verification_rate
             + 0.2 * revised.confidence
         )
 
-        # Final status: based on both critique and verification
         if critique.status == "BLOCK" or verification.verdict == "FAIL":
             final_status = "BLOCKED"
             final_reasoning = "Failed critique or verification."
@@ -126,18 +176,21 @@ class MedResearchPipeline:
             final_status = "REVIEW"
             final_reasoning = "Passed with minor concerns; review recommended."
 
-        log("=" * 60)
+        log("\n" + "=" * 60)
         log("PIPELINE COMPLETE")
         log("=" * 60)
-        log(f"  Total time:      {total_ms}ms")
-        log(f"  Final status:    {final_status}")
+        log(f"  Language:       {lang_name}")
+        log(f"  Country:        {country_info.get('name', country)}")
+        log(f"  Total time:     {total_ms}ms")
+        log(f"  Final status:   {final_status}")
         log(f"  Final confidence: {final_confidence:.2f}")
-        log(f"  Verified:        {verification.verified_count}/{verification.total_claims}")
+        log(f"  Verified:       {verification.verified_count}/{verification.total_claims}")
+        log(f"  Emergency:      {emergency}")
         log("=" * 60)
 
         return FinalResult(
             question=question,
-            answer=revised.answer,
+            answer=final_answer_text,
             claims=revised.claims,
             sources=revised.sources,
             critique=critique,
@@ -152,4 +205,4 @@ class MedResearchPipeline:
         )
 
 
-print("[orchestrator] MedResearchPipeline loaded")
+print("[orchestrator] MedResearchPipeline loaded (multi-language)")
