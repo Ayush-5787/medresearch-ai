@@ -45,3 +45,18 @@ htmlcov/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Test outputs
+test_report.pdf
+test_*.png
+test_*.mp3
+test_*.json
+evidence_graph.json
+
+# Streamlit
+.streamlit/secrets.toml
+.streamlit/cache
+
+# Python cache
+__pycache__/
+*.pyc

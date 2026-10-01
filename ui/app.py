@@ -1,5 +1,5 @@
 """
-MedResearch AI — Streamlit UI (with Voice + Multi-Language)
+MedResearch AI — Streamlit UI (Multi-Language + Voice + Image)
 """
 
 import asyncio
@@ -17,6 +17,7 @@ from governance.evidence_graph import EvidenceGraphBuilder
 from core.language import LanguageHandler
 from core.country import CountryConfig
 from core.voice import VoiceHandler
+from multimodal.image_reader import ImageReader
 
 
 # ============================================================
@@ -49,19 +50,20 @@ st.markdown("""
     .metric-label { font-size: 0.8rem; color: #888; text-transform: uppercase; letter-spacing: 1px; }
     .lang-country-box { background: #1a1a1a; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; }
     .voice-box { background: #0a1a2a; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; border: 1px solid #00d4ff; }
+    .image-box { background: #0a2a1a; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; border: 1px solid #4ade80; }
 </style>
 """, unsafe_allow_html=True)
 
 
 # ============================================================
-# INITIALIZE HANDLERS (cached)
+# INITIALIZE HANDLERS
 # ============================================================
 
 @st.cache_resource
 def get_handlers():
-    return LanguageHandler(), CountryConfig(), VoiceHandler()
+    return LanguageHandler(), CountryConfig(), VoiceHandler(), ImageReader()
 
-lang_handler, country_handler, voice_handler = get_handlers()
+lang_handler, country_handler, voice_handler, image_reader = get_handlers()
 
 
 # ============================================================
@@ -75,7 +77,7 @@ with st.sidebar:
     st.markdown(
         "A governed multi-agent research system that answers "
         "medical questions with traceable, verified citations. "
-        "Supports 71 languages, voice, and image input."
+        "Supports 71 languages, voice output, and image input."
     )
     st.markdown("---")
     st.markdown("**Pipeline**")
@@ -90,16 +92,16 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("**Features**")
     st.markdown("""
-    - 🎤 Voice input (99 languages)
-    - 🔊 Voice output (30 languages)
     - 🌐 Multi-language (71 languages)
-    - 📄 PDF export (coming)
-    - 📷 Image upload (coming)
+    - 🔊 Voice output (30 languages)
+    - 📷 Image upload (OCR)
+    - 🛡️ Governance (6 rules)
+    - ✅ Per-claim verification
     """)
     st.markdown("---")
     st.markdown("**Links**")
     st.markdown("[GitHub Repo](https://github.com/Ayush-5787/medresearch-ai)")
-    st.caption("Powered by Groq · Tavily · PubMed")
+    st.caption("Powered by Groq · Tavily · PubMed · Tesseract")
 
 
 # ============================================================
@@ -107,7 +109,7 @@ with st.sidebar:
 # ============================================================
 
 st.markdown('<div class="main-header">🏥 MedResearch AI</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">Governed Multi-Agent Research System — 71 Languages, Voice Enabled</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-header">Governed Multi-Agent Research System — 71 Languages, Voice, Image</div>', unsafe_allow_html=True)
 
 
 # ============================================================
@@ -126,7 +128,6 @@ with col_lang:
         options=list(languages.keys()),
         format_func=lambda x: languages[x],
         index=0,
-        help="Auto-detect will use the language of your question",
     )
 
 with col_country:
@@ -150,6 +151,51 @@ if country_info:
 
 
 # ============================================================
+# IMAGE UPLOAD (NEW!)
+# ============================================================
+
+st.markdown("---")
+st.markdown("### 📷 Upload Medical Image (Optional)")
+st.caption("Upload a photo of a prescription, medicine box, or medical report. Text will be extracted automatically.")
+
+with st.container():
+    st.markdown('<div class="image-box">', unsafe_allow_html=True)
+
+    uploaded_image = st.file_uploader(
+        "Choose an image...",
+        type=["jpg", "jpeg", "png", "bmp", "tiff"],
+        key="image_upload",
+    )
+
+    if uploaded_image is not None:
+        col_img, col_text = st.columns([1, 2])
+        with col_img:
+            st.image(uploaded_image, caption="Uploaded image", width=250)
+        with col_text:
+            with st.spinner("🔄 Extracting text from image..."):
+                image_bytes = uploaded_image.getvalue()
+                # Use Hindi + English OCR if user selected Hindi, else English
+                ocr_lang = "eng+hin" if selected_lang == "hi" else "eng"
+                result = image_reader.extract_text(image_bytes, lang=ocr_lang)
+
+            if result["error"]:
+                st.error(f"❌ OCR error: {result['error']}")
+                extracted_image_text = ""
+            elif result["text"]:
+                st.success(f"✅ Extracted ({result['word_count']} words, confidence {result['confidence']}):")
+                st.info(f"**{result['text']}**")
+                extracted_image_text = result["text"]
+            else:
+                st.warning("⚠️ No text detected in image.")
+                extracted_image_text = ""
+
+    else:
+        extracted_image_text = ""
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+# ============================================================
 # SAMPLE QUESTIONS
 # ============================================================
 
@@ -170,41 +216,20 @@ for i, (label, q) in enumerate(sample_questions):
 
 
 # ============================================================
-# VOICE INPUT (NEW!)
-# ============================================================
-
-st.markdown("---")
-st.markdown("### 🎤 Voice Input")
-st.caption("Speak your question in any language — Whisper will transcribe it automatically.")
-
-with st.container():
-    st.markdown('<div class="voice-box">', unsafe_allow_html=True)
-    audio_input = st.audio_input("🎙️ Tap to record your question")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-voice_question = ""
-if audio_input is not None:
-    with st.spinner("🔄 Transcribing audio..."):
-        # Get bytes from UploadedFile
-        audio_bytes = audio_input.getvalue()
-        result = voice_handler.transcribe(audio_bytes, language=selected_lang if selected_lang != "auto" else None)
-        voice_question = result.get("text", "")
-        detected_voice_lang = result.get("language", "unknown")
-
-    if voice_question:
-        st.success(f"✅ Transcribed ({detected_voice_lang}): {voice_question}")
-    else:
-        st.warning("⚠️ Could not transcribe audio. Please try again.")
-
-
-# ============================================================
 # TEXT INPUT
 # ============================================================
 
 st.markdown("---")
-st.markdown("### ⌨️ Or Type Your Question")
+st.markdown("### ⌨️ Ask Your Question")
 
-default_q = clicked_question or voice_question or "What are the side effects of metformin?"
+# Priority: sample button > image text > default
+if clicked_question:
+    default_q = clicked_question
+elif extracted_image_text:
+    default_q = extracted_image_text
+else:
+    default_q = "What are the side effects of metformin?"
+
 question = st.text_area(
     "🔎 Ask a medical question (any language):",
     value=default_q,
@@ -244,10 +269,7 @@ if run_button and question:
     audit_gate = AuditGate()
     audit_report = audit_gate.evaluate(result)
 
-    # ==========================================================
-    # TIMELINE
-    # ==========================================================
-
+    # ---------- TIMELINE ----------
     st.markdown("### ⏱️ Agent Timeline")
     timeline_data = [
         ("🔍 Search Agent", f"{len(result.sources)} sources", result.stage_timings.get("search_ms", 0)),
@@ -269,10 +291,7 @@ if run_button and question:
             unsafe_allow_html=True
         )
 
-    # ==========================================================
-    # METRICS
-    # ==========================================================
-
+    # ---------- METRICS ----------
     st.markdown("---")
     c1, c2, c3, c4 = st.columns(4)
     with c1:
@@ -284,10 +303,7 @@ if run_button and question:
     with c4:
         st.markdown(f'<div class="metric-card"><div class="metric-value">{audit_report.rules_passed}/6</div><div class="metric-label">Rules Passed</div></div>', unsafe_allow_html=True)
 
-    # ==========================================================
-    # DECISION
-    # ==========================================================
-
+    # ---------- DECISION ----------
     st.markdown("---")
     if audit_report.decision == "PASS":
         st.markdown('<div class="status-pass">✅ PASS — All governance rules passed</div>', unsafe_allow_html=True)
@@ -296,48 +312,36 @@ if run_button and question:
     else:
         st.markdown('<div class="status-refuse">🚫 REFUSED — Answer not safe to display</div>', unsafe_allow_html=True)
 
-    # ==========================================================
-    # ANSWER OR REFUSAL + VOICE OUTPUT
-    # ==========================================================
-
+    # ---------- ANSWER OR REFUSAL ----------
     if audit_report.decision in ("PASS", "BLOCKED"):
         st.markdown("### 📝 Answer")
         st.markdown(result.answer)
 
-        # Voice output buttons
+        # Voice output
         st.markdown("### 🔊 Listen to Answer")
         st.caption("Hear the answer read aloud in your language.")
 
-        # Detect answer language
         answer_lang = selected_lang if selected_lang != "auto" else lang_handler.detect_language(result.answer)
 
         voice_cols = st.columns(3)
         with voice_cols[0]:
-            if st.button("🔊 Listen in original language", key="tts_original", use_container_width=True):
+            if st.button("🔊 Original language", key="tts_original", use_container_width=True):
                 with st.spinner("Generating audio..."):
                     audio_bytes = voice_handler.synthesize(result.answer, answer_lang)
                     if audio_bytes:
                         st.audio(audio_bytes, format="audio/mp3", autoplay=True)
-                    else:
-                        st.error("Could not generate audio")
-
         with voice_cols[1]:
-            if st.button("🔊 Listen in English", key="tts_en", use_container_width=True):
+            if st.button("🔊 English", key="tts_en", use_container_width=True):
                 with st.spinner("Generating audio..."):
                     audio_bytes = voice_handler.synthesize(result.answer, "en")
                     if audio_bytes:
                         st.audio(audio_bytes, format="audio/mp3", autoplay=True)
-                    else:
-                        st.error("Could not generate audio")
-
         with voice_cols[2]:
-            if st.button("🔊 Listen in Hindi", key="tts_hi", use_container_width=True):
+            if st.button("🔊 हिन्दी", key="tts_hi", use_container_width=True):
                 with st.spinner("Generating audio..."):
                     audio_bytes = voice_handler.synthesize(result.answer, "hi")
                     if audio_bytes:
                         st.audio(audio_bytes, format="audio/mp3", autoplay=True)
-                    else:
-                        st.error("Could not generate audio")
 
         with st.expander(f"📊 Verification Report ({result.verification.verified_count}/{result.verification.total_claims} verified)"):
             for v in result.verification.results:
@@ -364,10 +368,7 @@ if run_button and question:
         </div>
         """, unsafe_allow_html=True)
 
-    # ==========================================================
-    # GOVERNANCE REPORT
-    # ==========================================================
-
+    # ---------- GOVERNANCE ----------
     st.markdown("---")
     st.markdown("### 🛡️ Governance Report")
     for rule in audit_report.rules:
@@ -379,10 +380,7 @@ if run_button and question:
             if rule.message:
                 st.write(f"**Message:** {rule.message}")
 
-    # ==========================================================
-    # EVIDENCE GRAPH
-    # ==========================================================
-
+    # ---------- EVIDENCE GRAPH ----------
     st.markdown("---")
     st.markdown("### 🕸️ Evidence Graph")
     builder = EvidenceGraphBuilder()
