@@ -1,0 +1,3 @@
+"""
+MedResearch AI — Authentication module.
+"""

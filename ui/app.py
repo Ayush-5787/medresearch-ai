@@ -1,12 +1,17 @@
 """
-MedResearch AI — Streamlit UI (Multi-Language + Voice + Image + PDF)
+MedResearch AI — Streamlit UI (Multi-Language + Voice + Image + PDF + Auth + Cache)
 """
+
+from dotenv import load_dotenv
+from pathlib import Path
+
+# Load environment variables FIRST, before any other imports
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 import asyncio
 import streamlit as st
 import time
 from datetime import datetime
-from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -20,6 +25,8 @@ from core.country import CountryConfig
 from core.voice import VoiceHandler
 from multimodal.image_reader import ImageReader
 from reports.pdf_generator import PDFReportGenerator
+from auth.auth_gate import render_login_screen, logout, init_session
+from cache.cache_manager import CacheManager
 
 
 # ============================================================
@@ -32,6 +39,33 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+
+# ============================================================
+# SESSION STATE
+# ============================================================
+
+if "view" not in st.session_state:
+    st.session_state.view = "main"
+
+# Persist last result across Streamlit reruns (button clicks)
+if "result" not in st.session_state:
+    st.session_state.result = None
+if "audit_report" not in st.session_state:
+    st.session_state.audit_report = None
+if "cached" not in st.session_state:
+    st.session_state.cached = None
+
+
+# ============================================================
+# AUTHENTICATION GATE
+# ============================================================
+
+init_session()
+
+if not st.session_state.get("authenticated", False):
+    render_login_screen()
+    st.stop()
 
 
 # ============================================================
@@ -51,9 +85,7 @@ st.markdown("""
     .metric-value { font-size: 1.8rem; font-weight: 700; color: #00d4ff; }
     .metric-label { font-size: 0.8rem; color: #888; text-transform: uppercase; letter-spacing: 1px; }
     .lang-country-box { background: #1a1a1a; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; }
-    .voice-box { background: #0a1a2a; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; border: 1px solid #00d4ff; }
     .image-box { background: #0a2a1a; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; border: 1px solid #4ade80; }
-    .pdf-box { background: #2a1a0a; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; border: 1px solid #ffc107; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -69,6 +101,13 @@ def get_handlers():
 lang_handler, country_handler, voice_handler, image_reader, pdf_generator = get_handlers()
 
 
+@st.cache_resource
+def get_cache():
+    return CacheManager()
+
+response_cache = get_cache()
+
+
 # ============================================================
 # SIDEBAR
 # ============================================================
@@ -76,6 +115,17 @@ lang_handler, country_handler, voice_handler, image_reader, pdf_generator = get_
 with st.sidebar:
     st.image(str(Path(__file__).parent.parent / "docs" / "logo.png"), width=120)
     st.markdown("### MedResearch AI")
+
+    user = st.session_state.get("user", {})
+    if user:
+        st.markdown(f"👤 **{user.get('username', 'User')}**")
+        st.caption(f"📧 {user.get('email', '')[:30]}")
+
+    st.markdown("---")
+
+    if st.button("🚪 Logout", use_container_width=True):
+        logout()
+
     st.markdown("---")
     st.markdown("**About**")
     st.markdown(
@@ -102,7 +152,25 @@ with st.sidebar:
     - 📄 PDF report download
     - 🛡️ Governance (6 rules)
     - ✅ Per-claim verification
+    - ⚡ Response cache (saves tokens)
     """)
+    st.markdown("---")
+    st.markdown("**⚡ Cache Stats**")
+    try:
+        cache_stats = response_cache.stats()
+        st.caption(f"📦 {cache_stats['total_entries']} entries")
+        st.caption(f"🎯 {cache_stats['total_hits']} hits saved")
+    except Exception:
+        st.caption("📦 0 entries")
+
+    if st.button("🧹 Clear Cache", use_container_width=True, key="clear_cache_btn"):
+        try:
+            cleared = response_cache.clear()
+            st.success(f"Cleared {cleared} entries")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Error: {e}")
+
     st.markdown("---")
     st.markdown("**Links**")
     st.markdown("[GitHub Repo](https://github.com/Ayush-5787/medresearch-ai)")
@@ -251,6 +319,9 @@ with col2:
     clear_button = st.button("🗑️ Clear", use_container_width=True)
 
 if clear_button:
+    st.session_state.result = None
+    st.session_state.audit_report = None
+    st.session_state.cached = None
     st.rerun()
 
 
@@ -264,17 +335,94 @@ async def run_pipeline(question: str, language: str, country: str):
 
 
 if run_button and question:
+    # Check cache first
+    cached = None
+    try:
+        cached = response_cache.get(question, selected_lang, selected_country)
+    except Exception as e:
+        st.warning(f"Cache read error: {e}")
+
+    if cached:
+        # ---------- CACHE HIT ----------
+        class _V:
+            def __init__(self, data):
+                results = data.get("results", []) if isinstance(data, dict) else []
+                self.results = results
+                self.verified_count = sum(
+                    1 for r in results if (r.get("verdict") if isinstance(r, dict) else None) == "VERIFIED"
+                )
+                self.total_claims = len(results)
+
+        class _C:
+            def __init__(self, conf):
+                self.status = "PASS"
+                self.overall_score = conf
+
+        class CachedResult:
+            def __init__(self, data):
+                self.question = data.get("question", "")
+                self.answer = data["answer"]
+                self.confidence = data["confidence"] or 0.0
+                self.decision = data["decision"]
+                self.sources = data["sources"]
+                self.claims = data["claims"]
+                self.verification = _V(data.get("verification", {}))
+                self.critique = _C(data["confidence"] or 0.0)
+                self.stage_timings = {}
+                self.total_duration_ms = 0
+                self.disclaimer = "This answer was retrieved from cache."
+
+        class _A:
+            def __init__(self, decision):
+                self.decision = decision
+                self.rules_passed = 6
+                self.rules = []
+
+        st.session_state.result = CachedResult(cached)
+        st.session_state.audit_report = _A(cached["decision"])
+        st.session_state.cached = cached
+    else:
+        # ---------- CACHE MISS ----------
+        with st.spinner("🔄 Running 6-agent pipeline... This takes ~2-3 minutes."):
+            try:
+                result = asyncio.run(run_pipeline(question, selected_lang, selected_country))
+            except Exception as e:
+                st.error(f"Pipeline error: {e}")
+                st.stop()
+
+        audit_gate = AuditGate()
+        audit_report = audit_gate.evaluate(result)
+
+        try:
+            saved = response_cache.set(question, selected_lang, selected_country, result)
+            if saved:
+                st.caption("💾 Answer saved to cache — future identical questions will be instant")
+        except Exception as e:
+            st.caption(f"⚠️ Could not save to cache: {e}")
+
+        st.session_state.result = result
+        st.session_state.audit_report = audit_report
+        st.session_state.cached = None
+
+    st.rerun()
+
+
+# ============================================================
+# RENDER RESULT (persists across reruns via session_state)
+# ============================================================
+
+if st.session_state.get("result") is not None:
+    result = st.session_state.result
+    audit_report = st.session_state.audit_report
+    cached = st.session_state.get("cached")
+
     st.markdown("---")
 
-    with st.spinner("🔄 Running 6-agent pipeline... This takes ~2-3 minutes."):
-        try:
-            result = asyncio.run(run_pipeline(question, selected_lang, selected_country))
-        except Exception as e:
-            st.error(f"Pipeline error: {e}")
-            st.stop()
-
-    audit_gate = AuditGate()
-    audit_report = audit_gate.evaluate(result)
+    if cached:
+        st.success(
+            f"⚡ **Instant answer from cache** — 0 tokens used · "
+            f"Asked **{cached['hit_count']}** time(s) before"
+        )
 
     # ---------- TIMELINE ----------
     st.markdown("### ⏱️ Agent Timeline")
@@ -324,11 +472,14 @@ if run_button and question:
         st.markdown("### 📝 Answer")
         st.markdown(result.answer)
 
-        # Voice output
+        # ---------- VOICE ----------
         st.markdown("### 🔊 Listen to Answer")
         st.caption("Hear the answer read aloud in your language.")
 
-        answer_lang = selected_lang if selected_lang != "auto" else lang_handler.detect_language(result.answer)
+        try:
+            answer_lang = selected_lang if selected_lang != "auto" else lang_handler.detect_language(result.answer)
+        except Exception:
+            answer_lang = "en"
 
         voice_cols = st.columns(3)
         with voice_cols[0]:
@@ -350,9 +501,7 @@ if run_button and question:
                     if audio_bytes:
                         st.audio(audio_bytes, format="audio/mp3", autoplay=True)
 
-        # ==========================================================
-        # PDF DOWNLOAD
-        # ==========================================================
+        # ---------- PDF ----------
         st.markdown("### 📄 Download Report")
         st.caption("Download a professional PDF with the answer, sources, verification, and governance report.")
 
@@ -381,15 +530,39 @@ if run_button and question:
         # ---------- VERIFICATION ----------
         with st.expander(f"📊 Verification Report ({result.verification.verified_count}/{result.verification.total_claims} verified)"):
             for v in result.verification.results:
-                icon = {"VERIFIED": "✅", "PARTIALLY_VERIFIED": "🟡", "NOT_VERIFIED": "🔴", "CONTRADICTED": "⚠️"}.get(v.verdict, "❓")
-                st.markdown(f"**{icon} Claim {v.claim_index + 1}:** {v.claim_text[:120]}...")
-                st.caption(f"Verdict: {v.verdict} ({v.confidence:.2f})")
-                if v.evidence:
-                    st.caption(f"Evidence: {v.evidence[:200]}...")
+                if isinstance(v, dict):
+                    verdict = v.get("verdict", "UNKNOWN")
+                    claim_idx = v.get("claim_index", 0)
+                    claim_text = v.get("claim_text", "")
+                    conf = v.get("confidence", 0.0)
+                    evidence = v.get("evidence", "")
+                else:
+                    verdict = v.verdict
+                    claim_idx = v.claim_index
+                    claim_text = v.claim_text
+                    conf = v.confidence
+                    evidence = getattr(v, "evidence", "")
+
+                icon = {"VERIFIED": "✅", "PARTIALLY_VERIFIED": "🟡", "NOT_VERIFIED": "🔴", "CONTRADICTED": "⚠️"}.get(verdict, "❓")
+                st.markdown(f"**{icon} Claim {claim_idx + 1}:** {claim_text[:120]}...")
+                st.caption(f"Verdict: {verdict} ({conf:.2f})")
+                if evidence:
+                    st.caption(f"Evidence: {evidence[:200]}...")
                 st.markdown("---")
     else:
+        # ---------- REFUSAL ----------
         refusal_builder = RefusalBuilder()
-        refusal = refusal_builder.build(result, audit_report)
+        try:
+            refusal = refusal_builder.build(result, audit_report)
+        except Exception:
+            refusal = type("R", (), {
+                "title": "Refused",
+                "reason": "This question cannot be answered safely.",
+                "details": "Please consult a qualified professional.",
+                "next_steps": ["Consult a doctor"],
+                "trusted_sources": [],
+                "emergency_note": "Call your local emergency number if urgent.",
+            })()
 
         st.markdown(f"""
         <div class="refusal-box">
@@ -417,33 +590,36 @@ if run_button and question:
                 st.write(f"**Message:** {rule.message}")
 
     # ---------- EVIDENCE GRAPH ----------
-    st.markdown("---")
-    st.markdown("### 🕸️ Evidence Graph")
-    builder = EvidenceGraphBuilder()
-    graph = builder.build(result)
+    if result.claims:
+        st.markdown("---")
+        st.markdown("### 🕸️ Evidence Graph")
+        builder = EvidenceGraphBuilder()
+        try:
+            graph = builder.build(result)
+            ca, cb, cc = st.columns(3)
+            with ca:
+                st.metric("Claims", graph.stats["total_claims"])
+            with cb:
+                st.metric("Sources", graph.stats["total_sources"])
+            with cc:
+                st.metric("Citations", graph.stats["total_edges"])
 
-    ca, cb, cc = st.columns(3)
-    with ca:
-        st.metric("Claims", graph.stats["total_claims"])
-    with cb:
-        st.metric("Sources", graph.stats["total_sources"])
-    with cc:
-        st.metric("Citations", graph.stats["total_edges"])
+            st.markdown("**Claims → Sources**")
+            claim_to_sources = {}
+            for edge in graph.edges:
+                claim_to_sources.setdefault(edge.source_id, []).append(edge.target_id)
+            for i, claim in enumerate(result.claims[:10]):
+                cid = f"claim_{i+1}"
+                sources = claim_to_sources.get(cid, [])
+                if sources:
+                    claim_text = claim.text if hasattr(claim, "text") else str(claim)
+                    with st.expander(f"Claim {i+1}: {claim_text[:80]}..."):
+                        st.write(f"**Full claim:** {claim_text}")
+                        st.write(f"**Supported by:** {len(sources)} source(s)")
+        except Exception as e:
+            st.caption(f"Evidence graph unavailable for cached result: {str(e)[:80]}")
 
-    st.markdown("**Claims → Sources**")
-    claim_to_sources = {}
-    for edge in graph.edges:
-        claim_to_sources.setdefault(edge.source_id, []).append(edge.target_id)
-    for i, claim in enumerate(result.claims[:10]):
-        cid = f"claim_{i+1}"
-        sources = claim_to_sources.get(cid, [])
-        if sources:
-            with st.expander(f"Claim {i+1}: {claim.text[:80]}..."):
-                st.write(f"**Full claim:** {claim.text}")
-                st.write(f"**Confidence:** {claim.confidence:.2f}")
-                st.write(f"**Supported by:** {len(sources)} source(s)")
-
-    st.caption(f"Total: {len(result.claims)} claims connected to {len(result.sources)} sources via {len(graph.edges)} citations")
+    st.caption(f"Total: {len(result.claims)} claims connected to {len(result.sources)} sources")
     st.markdown("---")
     st.caption(f"⚠️ {result.disclaimer}")
 

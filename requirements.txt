@@ -12,3 +12,4 @@ gTTS==2.5.1
 pytesseract==0.3.13
 Pillow==10.4.0
 reportlab==4.2.5
+openai>=1.50.0
