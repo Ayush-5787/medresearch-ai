@@ -13,3 +13,5 @@ pytesseract==0.3.13
 Pillow==10.4.0
 reportlab==4.2.5
 openai>=1.50.0
+bcrypt>=4.1.0
+PyYAML>=6.0
