@@ -14,7 +14,7 @@ from datetime import datetime
 import sys
 
 import streamlit.components.v1 as components
-from streamlit_cookies_controller import CookieController
+
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -43,11 +43,7 @@ st.set_page_config(
 )
 
 
-# ============================================================
-# COOKIE CONTROLLER — persistent login across browser sessions
-# ============================================================
 
-controller = CookieController()
 
 
 # ============================================================
@@ -65,30 +61,14 @@ if "cached" not in st.session_state:
 
 
 # ============================================================
-# AUTHENTICATION GATE (with cookie-based persistence)
+# AUTHENTICATION GATE
 # ============================================================
 
 init_session()
 
-# Try to restore session from cookie (survives browser refresh / new tab)
-if not st.session_state.get("authenticated", False):
-    try:
-        cookie_user = controller.get("medresearch_user")
-        if cookie_user and isinstance(cookie_user, dict):
-            st.session_state.authenticated = True
-            st.session_state.user = {
-                "id": cookie_user.get("id", 0),
-                "username": cookie_user.get("username", "User"),
-                "email": cookie_user.get("email", ""),
-            }
-    except Exception:
-        # First load — cookies component still loading
-        pass
-
 if not st.session_state.get("authenticated", False):
     render_login_screen()
     st.stop()
-
 
 # ============================================================
 # ARCHITECTURE VIEW — FULL PAGE (renders before sidebar)
@@ -171,11 +151,6 @@ with st.sidebar:
     st.markdown("---")
 
     if st.button("🚪 Logout", use_container_width=True):
-        # Clear cookie on logout
-        try:
-            controller.remove("medresearch_user")
-        except Exception:
-            pass
         logout()
 
     st.markdown("---")
