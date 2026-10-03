@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MedResearch AI — Live Interactive Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#0a0e1a;--line:#1c2740;--text:#e8edf7;--muted:#7d8db0;--accent:#38bdf8}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);overflow:hidden;font-family:'Inter','Segoe UI',sans-serif}
+  canvas{display:block}
+  #vignette{position:fixed;inset:0;pointer-events:none;z-index:5;
+    background:radial-gradient(ellipse at center,transparent 55%,rgba(4,7,14,.6) 100%)}
+  .hud{position:fixed;z-index:10;color:var(--text)}
+  #brand{top:26px;left:32px}
+  #brand h1{font-size:15px;font-weight:700;letter-spacing:3px}
+  #brand h1 span{color:#38bdf8}
+  #brand p{font-size:11px;color:var(--muted);letter-spacing:1.2px;margin-top:5px}
+  #counters{top:82px;left:32px;display:flex;flex-direction:column;gap:6px}
+  .cnt{display:flex;gap:8px;align-items:baseline;font-size:10.5px;letter-spacing:1.5px;color:var(--muted)}
+  .cnt b{color:#38bdf8;font-weight:700;min-width:70px;display:inline-block;transition:.25s}
+  .cnt b.pop{color:#34d399;transform:scale(1.15)}
+  #chips{top:26px;right:32px;display:flex;gap:8px}
+  .chip{border:1px solid var(--line);background:rgba(255,255,255,.03);backdrop-filter:blur(10px);
+    border-radius:6px;padding:7px 12px;font-size:10.5px;letter-spacing:1.2px;color:var(--muted)}
+  .chip b{color:var(--text);font-weight:600}
+  .chip.btn{cursor:pointer;transition:.2s;color:var(--text);border-color:#2a3a5e}
+  .chip.btn:hover{background:rgba(56,189,248,.12);border-color:#38bdf8}
+  #simbar{top:26px;left:50%;transform:translateX(-50%);width:480px;max-width:50vw;
+    border:1px solid var(--line);background:rgba(10,14,26,.85);backdrop-filter:blur(14px);
+    border-radius:10px;padding:10px 16px 12px;text-align:center}
+  #simCycle{font-size:9.5px;letter-spacing:2.2px;font-weight:700;color:#34d399;margin-bottom:5px}
+  #simDuty{font-size:12px;color:#dbe4f5;line-height:1.45;min-height:34px}
+  #simTrack{height:3px;background:#1a2440;border-radius:2px;margin-top:8px;overflow:hidden}
+  #simFill{height:100%;width:0%;background:linear-gradient(90deg,#38bdf8,#34d399);border-radius:2px;transition:width .4s}
+  #legend{bottom:26px;left:32px;font-size:10px;color:var(--muted);letter-spacing:1px;line-height:2}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
+  #hint{bottom:26px;right:32px;font-size:10.5px;color:var(--muted);letter-spacing:1px;text-align:right;line-height:1.9}
+  #hint b{color:#38bdf8;font-weight:600}
+  #drawer{position:fixed;top:0;right:0;height:100%;width:400px;max-width:94vw;z-index:30;
+    background:rgba(10,14,26,.94);backdrop-filter:blur(20px);border-left:1px solid var(--line);
+    transform:translateX(105%);transition:transform .45s cubic-bezier(.2,.8,.2,1);
+    overflow-y:auto;padding:28px 26px 40px;color:var(--text)}
+  #drawer.open{transform:translateX(0)}
+  #drawer::-webkit-scrollbar{width:5px}
+  #drawer::-webkit-scrollbar-thumb{background:#243352;border-radius:3px}
+  #dClose{position:absolute;top:18px;right:18px;width:30px;height:30px;border:1px solid var(--line);
+    background:rgba(255,255,255,.03);border-radius:8px;color:var(--muted);cursor:pointer;font-size:14px;transition:.2s}
+  #dClose:hover{color:var(--text);border-color:#38bdf8}
+  .dTier{display:inline-block;font-size:9.5px;letter-spacing:2px;font-weight:700;color:var(--accent);
+    border:1px solid var(--accent);border-radius:5px;padding:4px 9px;margin-bottom:12px}
+  .dStep{display:inline-block;margin-left:8px;font-size:9.5px;letter-spacing:1.5px;color:#34d399;
+    border:1px solid #1e4d3a;border-radius:5px;padding:4px 9px;margin-bottom:12px;background:rgba(52,211,153,.06)}
+  #drawer h2{font-size:22px;font-weight:700;letter-spacing:1px}
+  .dSub{font-size:10.5px;color:var(--muted);letter-spacing:.8px;margin-top:6px;
+    font-family:'Consolas','Courier New',monospace}
+  .sec{margin-top:20px}
+  .sec h4{font-size:9.5px;letter-spacing:2.2px;color:var(--muted);font-weight:700;margin-bottom:8px}
+  .sec p{font-size:12.5px;line-height:1.75;color:#c6d2e8}
+  .sec ul{list-style:none}
+  .sec li{font-size:12px;line-height:1.7;color:#c6d2e8;padding-left:16px;position:relative;margin-bottom:5px}
+  .sec li::before{content:'';position:absolute;left:0;top:9px;width:6px;height:2px;background:var(--accent);border-radius:1px}
+  .why{margin-top:20px;border-left:3px solid var(--accent);padding:12px 14px;
+    background:rgba(255,255,255,.025);border-radius:0 10px 10px 0}
+  .why h4{font-size:9.5px;letter-spacing:2.2px;color:var(--accent);font-weight:700;margin-bottom:8px}
+  .why p{font-size:12.5px;line-height:1.75;color:#dbe4f5}
+  .io{display:flex;align-items:stretch;gap:8px;margin-top:20px}
+  .io .box{flex:1;border:1px dashed #2a3a5e;border-radius:9px;padding:9px 11px}
+  .io .box small{display:block;font-size:8.5px;letter-spacing:1.5px;color:var(--muted);margin-bottom:3px}
+  .io .box span{font-size:11.5px;color:#c6d2e8}
+  .io .arr{align-self:center;color:var(--accent);font-size:15px;font-weight:700}
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:20px}
+  .stat{border:1px solid var(--line);border-radius:9px;padding:11px 13px;background:rgba(255,255,255,.02)}
+  .stat b{display:block;font-size:16px;color:var(--accent);font-weight:700}
+  .stat span{font-size:9.5px;color:var(--muted);letter-spacing:.6px}
+</style>
+</head>
+<body>
+<div id="vignette"></div>
+<div class="hud" id="brand">
+  <h1>MEDRESEARCH <span>AI</span></h1>
+  <p>LIVE SYSTEM ARCHITECTURE · EVERY PART ON DUTY</p>
+</div>
+<div class="hud" id="counters">
+  <div class="cnt"><b id="cSrc">—</b>SOURCES FOUND</div>
+  <div class="cnt"><b id="cClm">—</b>CLAIMS EXTRACTED</div>
+  <div class="cnt"><b id="cScore">—</b>CRITIC SCORE</div>
+  <div class="cnt"><b id="cVer">—</b>CLAIMS VERIFIED</div>
+  <div class="cnt"><b id="cRule">—</b>GOVERNANCE RULES</div>
+  <div class="cnt"><b id="cDec">—</b>DECISION</div>
+</div>
+<div class="hud" id="simbar">
+  <div id="simCycle">● LIVE SIMULATION</div>
+  <div id="simDuty">Starting demo…</div>
+  <div id="simTrack"><div id="simFill"></div></div>
+</div>
+<div class="hud" id="chips">
+  <div class="chip btn" id="simBtn">⏸ PAUSE DEMO</div>
+  <div class="chip btn" id="tourBtn">▶ GUIDED TOUR</div>
+  <div class="chip"><b>6</b> AGENTS</div>
+  <div class="chip"><b>6</b> RULES</div>
+  <div class="chip"><b>71</b> LANGS</div>
+</div>
+<div class="hud" id="legend">
+  <span class="dot" style="background:#34d399"></span>CLIENT &nbsp;
+  <span class="dot" style="background:#fbbf24"></span>SECURITY &nbsp;
+  <span class="dot" style="background:#60a5fa"></span>AGENTS &nbsp;
+  <span class="dot" style="background:#22d3ee"></span>LLM &nbsp;
+  <span class="dot" style="background:#f87171"></span>GOVERNANCE &nbsp;
+  <span class="dot" style="background:#a78bfa"></span>CORE &nbsp;
+  <span class="dot" style="background:#94a3b8"></span>EXTERNAL
+</div>
+<div class="hud" id="hint"><b>CLICK ANY PANEL</b> — pauses demo, opens full explanation<br>drag = orbit · scroll = zoom · dbl-click = reset camera</div>
+<div id="drawer"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+/* ══════════════════════════════════════════════════════════
+   MEDRESEARCH AI — LIVE ARCHITECTURE SIMULATION
+   Every panel performs its real duty, in real time.
+   ══════════════════════════════════════════════════════════ */
+
+const TIER = {
+  client:  {name:'01 · CLIENT',            color:'#34d399'},
+  security:{name:'02 · SECURITY & CACHE', color:'#fbbf24'},
+  pipeline:{name:'03 · AGENT PIPELINE',   color:'#60a5fa'},
+  llm:     {name:'04 · INTELLIGENCE',     color:'#22d3ee'},
+  gov:     {name:'04 · TRUST & SAFETY',   color:'#f87171'},
+  core:    {name:'05 · CORE SERVICES',    color:'#a78bfa'},
+  external:{name:'06 · EXTERNAL SERVICES',color:'#94a3b8'}
+};
+
+const INFO = {
+user:{t:'client',title:'USER',file:'ui/app.py',
+ what:'A person asking a medical question — typed in any of 71 languages, or captured as a photo of a prescription or medicine box.',
+ how:['Asks a question in their own language, or uploads an image','Image is routed to OCR and becomes text','Language auto-detected, question translated to English for the pipeline','Question + language + country together form the cache key'],
+ why:'Everything in this system exists for this moment. Multi-language input and image OCR make trustworthy medical research accessible far beyond English-only tools.',
+ io:['Question: text or image','Normalized English question'],
+ stats:[['71','languages'],['10','countries'],['EN+HI','OCR support']]},
+frontend:{t:'client',title:'FRONTEND',file:'ui/app.py',
+ what:'The Streamlit web application — the only screen the user ever sees. It hosts login, the selectors, the question box, and the full result display.',
+ how:['Shows the auth screen first — nothing runs without a session','Collects question, language, country and optional image','Sends the request to the pipeline, renders the agent timeline live','Displays the decision banner: PASS, BLOCKED or REFUSED'],
+ why:'It is the gatekeeper and the storyteller: it enforces authentication before any compute is spent, and it transparently shows the governance verdict instead of hiding it.',
+ io:['User input','Pipeline request'],
+ stats:[['Streamlit','framework'],['Live','public app'],['100%','governed output']]},
+result:{t:'client',title:'RESULT',file:'ui/app.py · reports/pdf_generator.py',
+ what:'The final deliverable: a cited medical answer plus the full evidence package that proves it.',
+ how:['Answer rendered with inline [N] citations','Per-claim verification report and 6-rule governance report','Evidence graph maps every claim to its source','Voice output in 30 languages and a downloadable PDF'],
+ why:'Trust is the product. By showing verification and governance evidence next to the answer, the output becomes an auditable medical report — not just chat text.',
+ io:['Governed answer','Answer + voice + PDF + graph'],
+ stats:[['~1,800','chars per answer'],['4','claim verdicts'],['30','voice languages']]},
+auth:{t:'security',title:'AUTHENTICATION',file:'auth/auth_gate.py · auth/user_manager.py',
+ what:'The authentication gate: signup, login and session management with bcrypt-hashed passwords.',
+ how:['Signup: password hashed with bcrypt, stored in the user database','Login: hash comparison — plaintext is never stored','Session initialized in Streamlit state','Every app rerun re-checks the session before rendering'],
+ why:'Medical questions are sensitive. Auth prevents anonymous abuse of the APIs, enables accountability, and is the first governance decision: no session, no service.',
+ io:['Credentials','Verified session'],
+ stats:[['bcrypt','hashing'],['0','plaintext passwords']]},
+cache:{t:'security',title:'CACHE',file:'cache/cache_manager.py · cache/normalizer.py',
+ what:'A response cache keyed by SHA256 of the normalized question + language + country.',
+ how:['Question normalized: lowercase, stripped, whitespace collapsed','SHA256 key generated for lookup','HIT: answer returned in under 100 ms with zero tokens','MISS: full pipeline runs — only governance-passed answers are stored'],
+ why:'Repeat questions cost ~99% fewer tokens: near-zero API cost, instant answers, protection against rate limits. Refusals are never cached — safety is always re-evaluated.',
+ io:['SHA256 cache key','Instant answer or MISS'],
+ stats:[['<100 ms','cache hit'],['0','tokens on hit'],['99%','token savings']]},
+search:{t:'pipeline',title:'SEARCH AGENT',badge:'AGENT 1 / 6',file:'agents/search_agent.py',
+ what:'The evidence gatherer. Queries real medical databases and the web, then ranks and deduplicates what it finds.',
+ how:['PubMed E-utilities queried for peer-reviewed literature','Tavily searched for curated web sources','Results ranked by relevance and credibility','Duplicates removed → ~13 clean sources'],
+ why:'An answer is only as good as its evidence. Grounding in PubMed means claims trace to peer-reviewed science instead of model memory — hallucination is stopped at the source.',
+ io:['English question','~13 ranked sources'],
+ stats:[['~13','sources'],['2','providers'],['0','unverified sources']]},
+reader:{t:'pipeline',title:'READER AGENT',badge:'AGENT 2 / 6',file:'agents/reader_agent.py',
+ what:'The evidence extractor. Reads every source found and converts raw text into structured, attributable claims.',
+ how:['Fetches full source text via httpx + BeautifulSoup','LLM extracts discrete factual claims from each source','Every claim is tagged with its source reference [1], [2]…','Output: ~30 claims, each traceable to a document'],
+ why:'This step turns web pages into verifiable units of knowledge. Without discrete claims, later verification could never check individual statements.',
+ io:['~13 sources','~30 sourced claims'],
+ stats:[['~30','claims extracted'],['100%','claims referenced']]},
+writer:{t:'pipeline',title:'WRITER AGENT',badge:'AGENT 3 / 6',file:'agents/writer_agent.py',
+ what:'The drafter. Turns the verified claim set into a clear, structured, cited answer.',
+ how:['Hybrid approach: template guarantees structure + disclaimer','LLM writes the prose from the claims','Inline citations [N] inserted per claim','Validation: every [N] must map to a real source'],
+ why:'Produces the user-facing answer while keeping it safe and consistent. The LLM handles language quality, but structure and safety are enforced by code — fake citations are impossible.',
+ io:['~30 claims','Cited draft ~1,800 chars'],
+ stats:[['Hybrid','template + LLM'],['100%','validated citations']]},
+critic:{t:'pipeline',title:'CRITIC AGENT',badge:'AGENT 4 / 6',file:'agents/critic_agent.py',
+ what:'The quality inspector. Scores the draft from 0.0 to 1.0 and lists every issue found.',
+ how:['Stage A: deterministic checks — length, citation coverage, disclaimer','Stage B: LLM semantic critique — accuracy, completeness, clarity','Outputs a score and a concrete issue list','Score below 0.7 triggers the Revision Agent'],
+ why:'Catches problems before the user ever sees them and drives the self-correction loop — this makes the pipeline a review process, not one-shot generation.',
+ io:['Cited draft','Score 0.0–1.0 + issues'],
+ stats:[['2','review stages'],['0.7','pass threshold']]},
+revision:{t:'pipeline',title:'REVISION AGENT',badge:'AGENT 5 / 6',file:'agents/revision_agent.py',
+ what:'The repair agent. Patches the draft exactly where the critic found weakness — and skips itself when there is nothing to fix.',
+ how:['Tier 0: cosmetic fixes — formatting, disclaimer','Tier 1: structural edits — reordering, adding citations','Tier 2: rewriting weak sections','Skipped entirely if the critic score already passed'],
+ why:'Efficiency and precision: only broken parts are reworked, saving tokens and latency — a clean draft costs nothing extra.',
+ io:['Draft + issue list','Patched answer'],
+ stats:[['3','patch tiers'],['Auto-skip','when passed']]},
+verifier:{t:'pipeline',title:'VERIFIER AGENT',badge:'AGENT 6 / 6',file:'agents/verifier_agent.py',
+ what:'The fact-checker. Re-reads every cited source and judges every single claim against it.',
+ how:['Each claim matched back to its cited source text','Verdict per claim: VERIFIED · PARTIAL · NOT FOUND · CONTRADICTED','Full verification report assembled','Governance Rule 2 requires ≥ 90% verified claims'],
+ why:'The core trust mechanism and the biggest difference from a chatbot: no statement survives unless the document it cites actually supports it.',
+ io:['Patched answer + sources','Per-claim verification report'],
+ stats:[['4','verdict types'],['≥90%','required to pass']]},
+llm:{t:'llm',title:'LLM CLIENT',file:'core/llm.py',
+ what:'The single LLM interface used by every agent — one wrapper, two providers, automatic failover.',
+ how:['simple() for single-turn prompts, chat() for multi-turn','Primary: Groq — openai/gpt-oss-120b, fast inference','If Groq fails: automatic fallback to OpenRouter llama-3.3-70b (free)','Prompts, retries and cost control centralized here'],
+ why:'One client means consistent behavior across all agents and a resilience guarantee: if a provider goes down, the app keeps answering.',
+ io:['Prompts from 4 agents','LLM completions'],
+ stats:[['2','providers'],['Auto','failover'],['4','agents served']]},
+governance:{t:'gov',title:'GOVERNANCE GATE',file:'governance/audit_gate.py · refusal.py · evidence_graph.py',
+ what:'The final gate and the system\u2019s conscience: six hard rules decide whether an answer is allowed to reach the user.',
+ how:['Rule 1 — every claim must have a source','Rule 2 — verification rate ≥ 90%','Rule 3 — confidence ≥ 0.7','Rule 4 — no unsafe language','Rule 5 — medical disclaimer present','Rule 6 — substance ≥ 200 characters','Outcome: PASS · BLOCKED · REFUSED — refusals include trusted sources and the country\u2019s emergency number'],
+ why:'This layer can veto the entire pipeline — including its own output. Unsafe questions are never answered; weak answers are blocked. That is what makes the system safe for medical use.',
+ io:['Verified answer','PASS / BLOCKED / REFUSED'],
+ stats:[['6','hard rules'],['3','outcomes'],['10','country configs']]},
+config:{t:'core',title:'CONFIG',file:'core/config.py',
+ what:'Central settings loader for all API keys and configuration.',
+ how:['Cloud: reads Streamlit secrets','Local: reads .env file','Both gitignored — keys never enter the repository'],
+ why:'Security hygiene: a single source of truth for secrets, with zero risk of keys leaking through GitHub.',
+ stats:[['2','environments'],['0','keys in repo']]},
+language:{t:'core',title:'LANGUAGE',file:'core/language.py',
+ what:'Language detection and translation for 71 languages.',
+ how:['langdetect auto-detects the user\u2019s language','Question translated to English for the pipeline','Final answer translated back to the user\u2019s language'],
+ why:'Medical information should not be gated by English. This is what makes the system usable for a global audience.',
+ stats:[['71','languages'],['Auto','detection']]},
+country:{t:'core',title:'COUNTRY',file:'core/country.py',
+ what:'Country-aware configuration for 10 countries.',
+ how:['Stores emergency numbers per country','Curates trusted local sources','Feeds refusal messages with the right helpline'],
+ why:'A refusal that says "call 911" is wrong in India. Country context makes safety advice actually actionable.',
+ stats:[['10','countries'],['Per-country','emergency numbers']]},
+voice:{t:'core',title:'VOICE',file:'core/voice.py',
+ what:'Text-to-speech output for answers using gTTS.',
+ how:['Answer text converted to audio','30 language voices available','One-click playback buttons in the UI'],
+ why:'Accessibility: users with low literacy or visual impairment can still receive the answer.',
+ stats:[['30','voices'],['1-click','playback']]},
+schemas:{t:'core',title:'SCHEMAS',file:'core/schemas.py',
+ what:'17 Pydantic models — the typed contracts every agent speaks.',
+ how:['Source, Claim, AgentStep, SearchResult','ResearchAnswer, FinalResult, Critique, Issue','VerificationReport, AuditRule, AuditReport, RefusalMessage','GraphNode, GraphEdge, EvidenceGraph'],
+ why:'Typed contracts mean an agent cannot silently pass malformed data downstream. Failures happen at the boundary, not deep in the pipeline.',
+ stats:[['17','models'],['100%','typed boundaries']]},
+ocr:{t:'core',title:'OCR',file:'multimodal/image_reader.py',
+ what:'Image text extraction — prescriptions, medicine boxes and lab reports become answerable questions.',
+ how:['Pillow preprocesses the uploaded image','Tesseract extracts text — English + Hindi','Extracted text fills the question box'],
+ why:'Many real medical questions start with a photo, not a sentence. OCR meets users where they are.',
+ stats:[['EN+HI','languages'],['2','stage pipeline']]},
+pdf:{t:'core',title:'PDF REPORTS',file:'reports/pdf_generator.py',
+ what:'Professional PDF report generation with ReportLab.',
+ how:['Section 1: the question','Section 2: answer with sources','Section 3: verification report','Section 4: governance report'],
+ why:'Users can keep, print and share an auditable document of the research — the output lives beyond the chat window.',
+ stats:[['4','report sections'],['1-click','download']]},
+groq:{t:'external',title:'GROQ API',file:'External · groq.com',
+ what:'Primary LLM provider — serving openai/gpt-oss-120b.',
+ how:['Handles all agent LLM calls under normal operation','Ultra-fast inference keeps the 6-agent pipeline responsive'],
+ why:'Speed is the reason a 6-agent pipeline still feels instant to users.',
+ stats:[['Primary','provider'],['gpt-oss-120b','model']]},
+openrouter:{t:'external',title:'OPENROUTER',file:'External · openrouter.ai',
+ what:'Fallback LLM provider — meta-llama/llama-3.3-70b-instruct on the free tier.',
+ how:['Activated automatically when Groq fails','Free tier keeps the app resilient at zero extra cost'],
+ why:'Resilience: the app keeps working even during a primary provider outage.',
+ stats:[['Fallback','provider'],['Free','tier']]},
+pubmed:{t:'external',title:'PUBMED',file:'External · ncbi.nlm.nih.gov',
+ what:'Peer-reviewed medical literature via NIH E-utilities.',
+ how:['Search Agent queries it for scientific papers','The backbone of evidence grounding'],
+ why:'PubMed is the difference between research and guessing — claims trace to peer-reviewed science.',
+ stats:[['NIH','database'],['Primary','evidence source']]},
+tavily:{t:'external',title:'TAVILY',file:'External · tavily.com',
+ what:'Web search API optimized for LLM answers.',
+ how:['Search Agent uses it to supplement PubMed','Adds clinical guidance pages and recent information'],
+ why:'Covers what journals alone miss — guidelines, WHO pages, current practice.',
+ stats:[['Web','search'],['Secondary','evidence source']]},
+gtts:{t:'external',title:'GTTS',file:'Library · pypi.org',
+ what:'Google Text-to-Speech.',
+ how:['Voice Handler converts answers to audio','30 language voices'],
+ why:'Turns text answers into accessible audio for all users.',
+ stats:[['30','voices'],['Google','service']]},
+tesseract:{t:'external',title:'TESSERACT',file:'Library · github.com/tesseract-ocr',
+ what:'Open-source OCR engine.',
+ how:['Multimodal layer feeds it images','Extracts English + Hindi text'],
+ why:'The bridge from photos of prescriptions to answerable questions.',
+ stats:[['EN+HI','support'],['Open-source','engine']]},
+reportlab:{t:'external',title:'REPORTLAB',file:'Library · pypi.org',
+ what:'PDF generation library.',
+ how:['Reports layer builds the 4-section PDF','Professional layout with citations'],
+ why:'Turns a chat answer into a permanent, shareable document.',
+ stats:[['4','sections'],['PDF','output']]}
+};
+
+/* ══════════ DUTY SCRIPTS — the live simulation ══════════ */
+const CYCLES = [
+{ label:'SCENARIO 1 / 3 · NEW QUESTION · FULL PIPELINE', steps:[
+  {id:'user',      dur:3.0, duty:'User types in Hindi: "मधुमेह के शुरुआती लक्षण क्या हैं?"'},
+  {id:'frontend',  dur:3.0, duty:'Language detected: Hindi → translating to English', assists:['language']},
+  {id:'auth',      dur:2.0, duty:'Checking session… bcrypt hash verified ✓'},
+  {id:'cache',     dur:2.5, duty:'SHA256(question+lang+country) → lookup → MISS', flash:'#fbbf24'},
+  {id:'search',    dur:3.5, duty:'PubMed: 8 papers · Tavily: 9 pages → ranked to 13 sources', assists:['pubmed','tavily'], cnt:{cSrc:'13'}},
+  {id:'reader',    dur:3.5, duty:'Reading all 13 sources → extracting 30 sourced claims', cnt:{cClm:'30'}},
+  {id:'writer',    dur:3.5, duty:'LLM drafting cited answer (~1,800 chars) [1][2][3]…', assists:['llm','groq']},
+  {id:'critic',    dur:3.0, duty:'Scoring draft… 0.62 — BELOW 0.7 threshold ⚠', assists:['llm'], cnt:{cScore:'0.62 ✗'}, flash:'#fbbf24'},
+  {id:'revision',  dur:3.0, duty:'Patching: adding 2 missing citations + disclaimer fix', assists:['llm'], cnt:{cScore:'fixing…'}},
+  {id:'critic',    dur:2.0, duty:'Re-score: 0.84 ✓ — draft approved', cnt:{cScore:'0.84 ✓'}},
+  {id:'verifier',  dur:3.5, duty:'Re-reading sources… claim 1/4 ✓ 2/4 ✓ 3/4 ✓ 4/4 ✓', cnt:{cVer:'100%'}},
+  {id:'governance',dur:3.5, duty:'Rule 1✓ 2✓ 3✓ 4✓ 5✓ 6✓ — ALL SIX RULES PASS', badge:['✓ PASS','#34d399'], flash:'#34d399', cnt:{cRule:'6/6', cDec:'PASS ✓'}},
+  {id:'result',    dur:4.0, duty:'Delivering: answer + Hindi voice + PDF report + evidence graph', assists:['voice','pdf','gtts','reportlab','country']},
+  {id:'cache',     dur:2.5, duty:'Storing PASSED answer in cache for the next user', flash:'#34d399'}
+]},
+{ label:'SCENARIO 2 / 3 · REPEAT QUESTION · CACHE HIT', steps:[
+  {id:'user',      dur:2.5, duty:'Another user asks the same question…'},
+  {id:'frontend',  dur:2.0, duty:'Forwarding request'},
+  {id:'auth',      dur:1.5, duty:'Session ✓'},
+  {id:'cache',     dur:3.5, duty:'HIT! Returned in 87 ms · 0 tokens · ~99% cost saved', flash:'#fbbf24', badge:['⚡ CACHE HIT','#fbbf24'], cnt:{cDec:'INSTANT ⚡'}},
+  {id:'result',    dur:3.0, duty:'Instant answer served — the pipeline never ran'}
+]},
+{ label:'SCENARIO 3 / 3 · UNSAFE QUESTION · GOVERNANCE REFUSAL', steps:[
+  {id:'user',      dur:3.0, duty:'User asks: "How much ibuprofen is lethal?"'},
+  {id:'frontend',  dur:2.0, duty:'Translating + forwarding'},
+  {id:'auth',      dur:1.5, duty:'Session ✓'},
+  {id:'cache',     dur:2.0, duty:'Lookup → MISS → pipeline starts'},
+  {id:'search',    dur:2.5, duty:'Gathering sources…', assists:['pubmed','tavily'], cnt:{cSrc:'9'}},
+  {id:'writer',    dur:2.5, duty:'Drafting response…', assists:['llm','groq']},
+  {id:'governance',dur:4.0, duty:'RULE 4 VIOLATION: harmful dosage request detected → REFUSED', badge:['⛔ REFUSED','#f87171'], flash:'#f87171', cnt:{cRule:'4 ✗', cDec:'REFUSED ⛔'}},
+  {id:'governance',dur:3.5, duty:'Building safe refusal: trusted sources + India helpline 112', assists:['country']},
+  {id:'result',    dur:3.5, duty:'User receives a caring refusal — never an answer to harm'},
+  {id:'cache',     dur:2.5, duty:'Refusal NOT cached — safety is always re-evaluated live'}
+]}
+];
+
+/* ══════════ SCENE ══════════ */
+const C = { bg:0x0a0e1a, panel:0x101a30, request:0x38bdf8, response:0x34d399, cacheHit:0xfbbf24 };
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(C.bg, 180, 460);
+const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, .1, 1000);
+const CAM_HOME  = new THREE.Vector3(70, 45, 125);
+const CAM_START = new THREE.Vector3(150, 95, 260);
+const HOME_TARGET = new THREE.Vector3(0, 10, 0);
+camera.position.copy(CAM_START);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setClearColor(C.bg);
+document.body.appendChild(renderer.domElement);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.target.copy(HOME_TARGET);
+controls.enableDamping = true; controls.dampingFactor = .06;
+controls.autoRotate = true; controls.autoRotateSpeed = .35;
+controls.minDistance = 40; controls.maxDistance = 320;
+controls.maxPolarAngle = Math.PI * .55;
+
+scene.add(new THREE.AmbientLight(0xffffff, .55));
+const key = new THREE.DirectionalLight(0xdfe8ff, .8);
+key.position.set(80, 140, 90); scene.add(key);
+const grid = new THREE.GridHelper(340, 42, 0x1a2440, 0x111a2e);
+grid.position.y = -36; grid.material.transparent = true; grid.material.opacity = .28; scene.add(grid);
+
+/* ══════════ HELPERS ══════════ */
+function makeLabel(text, accent, scale = .105) {
+  const c = document.createElement('canvas'); let x = c.getContext('2d');
+  x.font = "600 26px Inter,'Segoe UI',Arial";
+  const w = Math.ceil(x.measureText(text).width) + 32; c.width = w; c.height = 48;
+  x = c.getContext('2d'); x.font = "600 26px Inter,'Segoe UI',Arial";
+  x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.fillStyle = '#eef2fb'; x.fillText(text, w/2, 22);
+  if (accent) { x.fillStyle = accent; x.fillRect(w/2 - 14, 40, 28, 3); }
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:new THREE.CanvasTexture(c), transparent:true, depthWrite:false }));
+  sp.scale.set(w * scale, 48 * scale, 1); return sp;
+}
+
+/* duty caption sprite — shows live job text above the active panel */
+const dutyCanvas = document.createElement('canvas');
+dutyCanvas.width = 1024; dutyCanvas.height = 72;
+const dutyTex = new THREE.CanvasTexture(dutyCanvas);
+const dutySprite = new THREE.Sprite(new THREE.SpriteMaterial({ map:dutyTex, transparent:true, depthWrite:false }));
+dutySprite.scale.set(64, 4.5, 1); dutySprite.visible = false; scene.add(dutySprite);
+function setDutySprite(text) {
+  const x = dutyCanvas.getContext('2d');
+  x.clearRect(0, 0, 1024, 72);
+  if (!text) { dutySprite.visible = false; return; }
+  x.fillStyle = 'rgba(10,14,26,.85)';
+  x.beginPath();
+  if (x.roundRect) x.roundRect(4, 6, 1016, 60, 14); else x.rect(4, 6, 1016, 60);
+  x.fill();
+  x.strokeStyle = '#38bdf8'; x.lineWidth = 2; x.stroke();
+  x.font = "600 27px Inter,'Segoe UI',Arial";
+  x.fillStyle = '#dbe4f5'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  let t = text;
+  while (x.measureText(t).width > 980 && t.length > 10) t = t.slice(0, -2);
+  if (t !== text) t += '…';
+  x.fillText(t, 512, 38);
+  dutyTex.needsUpdate = true; dutySprite.visible = true;
+}
+
+const reg = new Map();
+const boxMeshes = [];
+
+function panel(id, x, y, w, tierKey) {
+  const d = INFO[id], accent = new THREE.Color(TIER[tierKey].color), h = 6, dep = 10;
+  const g = new THREE.Group();
+  const box = new THREE.Mesh(new THREE.BoxGeometry(w, h, dep),
+    new THREE.MeshPhysicalMaterial({ color:C.panel, transparent:true, opacity:.92, roughness:.35, metalness:.25 }));
+  box.userData.id = id; boxMeshes.push(box);
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(box.geometry),
+    new THREE.LineBasicMaterial({ color:accent, transparent:true, opacity:.9 }));
+  const cap = new THREE.Mesh(new THREE.PlaneGeometry(w*.96, dep*.96),
+    new THREE.MeshBasicMaterial({ color:accent, transparent:true, opacity:.07 }));
+  cap.rotation.x = -Math.PI/2; cap.position.y = h/2 + .02;
+  const lbl = makeLabel(d.title, TIER[tierKey].color);
+  lbl.position.y = h/2 + 5.5;
+  g.add(box, edges, cap, lbl);
+  g.position.set(x, y, 0); scene.add(g);
+  reg.set(id, { group:g, box, edges, w });
+}
+
+function tier(y, name, color) {
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(250, 13),
+    new THREE.MeshBasicMaterial({ color:new THREE.Color(color), transparent:true, opacity:.03 }));
+  plane.rotation.x = -Math.PI/2; plane.position.set(6, y - 8.5, 0); scene.add(plane);
+  const lbl = makeLabel(name, null, .09);
+  lbl.material.color = new THREE.Color(0x7d8db0);
+  lbl.position.set(-128, y, 0); scene.add(lbl);
+}
+
+function flow(points, color, opacity) {
+  const curve = new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(p[0], p[1], 0)), false, 'catmullrom', .18);
+  const mesh = new THREE.Mesh(new THREE.TubeGeometry(curve, 72, .16, 8),
+    new THREE.MeshBasicMaterial({ color, transparent:true, opacity }));
+  scene.add(mesh); return { curve, mat: mesh.material };
+}
+
+function link(a, b, color) {
+  const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+    [new THREE.Vector3(a[0],a[1],0), new THREE.Vector3(b[0],b[1],0)]),
+    new THREE.LineDashedMaterial({ color, transparent:true, opacity:.16, dashSize:1.4, gapSize:1.6 }));
+  l.computeLineDistances(); scene.add(l);
+}
+
+const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64;
+  const x = c.getContext('2d'), g = x.createRadialGradient(32,32,0,32,32,32);
+  g.addColorStop(0,'rgba(255,255,255,1)'); g.addColorStop(.4,'rgba(255,255,255,.25)'); g.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle = g; x.fillRect(0,0,64,64); return new THREE.CanvasTexture(c); })();
+
+function pulse(color, r) {
+  const core = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), new THREE.MeshBasicMaterial({ color }));
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color, transparent:true, opacity:.75, blending:THREE.AdditiveBlending, depthWrite:false }));
+  glow.scale.setScalar(r * 9); scene.add(core, glow); return { core, glow };
+}
+
+/* orbiting "working" dots — appear around whichever panel is on duty */
+const orbit = new THREE.Group();
+const orbitDots = [];
+for (let i = 0; i < 3; i++) {
+  const s = new THREE.Mesh(new THREE.SphereGeometry(.55, 10, 8), new THREE.MeshBasicMaterial({ color:0x7dd3fc }));
+  orbit.add(s); orbitDots.push(s);
+}
+orbit.visible = false; scene.add(orbit);
+
+/* ══════════ BUILD TIERS + PANELS ══════════ */
+tier( 46, '01 · CLIENT',              TIER.client.color);
+tier( 32, '02 · SECURITY',            TIER.security.color);
+tier( 18, '03 · AGENT PIPELINE',      TIER.pipeline.color);
+tier(  4, '04 · INTELLIGENCE & TRUST','#22d3ee');
+tier(-10, '05 · CORE SERVICES',       TIER.core.color);
+tier(-24, '06 · EXTERNAL SERVICES',   TIER.external.color);
+
+panel('user',     -88,  46, 15, 'client');
+panel('frontend', -56,  46, 15, 'client');
+panel('result',    60,  46, 17, 'client');
+panel('auth',     -88,  32, 15, 'security');
+panel('cache',    -56,  32, 15, 'security');
+panel('search',   -41,  18, 13, 'pipeline');
+panel('reader',   -25,  18, 13, 'pipeline');
+panel('writer',    -8,  18, 13, 'pipeline');
+panel('critic',     8,  18, 13, 'pipeline');
+panel('revision',  25,  18, 13, 'pipeline');
+panel('verifier',  41,  18, 13, 'pipeline');
+panel('llm',      -25,   4, 17, 'llm');
+panel('governance',41,   4, 17, 'gov');
+panel('config',   -72, -10, 13, 'core');
+panel('language', -56, -10, 13, 'core');
+panel('country',  -40, -10, 13, 'core');
+panel('voice',    -24, -10, 13, 'core');
+panel('schemas',   -8, -10, 13, 'core');
+panel('ocr',        8, -10, 13, 'core');
+panel('pdf',       24, -10, 13, 'core');
+panel('groq',     -32, -24, 13, 'external');
+panel('openrouter',-16,-24, 13, 'external');
+panel('pubmed',     0, -24, 13, 'external');
+panel('tavily',    16, -24, 13, 'external');
+panel('gtts',      32, -24, 13, 'external');
+panel('tesseract', 48, -24, 13, 'external');
+panel('reportlab', 64, -24, 13, 'external');
+
+link([-25, 1], [-32, -21], 0x22d3ee);
+link([-25, 1], [-16, -21], 0x22d3ee);
+
+const reqFlow  = flow([[-88,46],[-56,46],[-56,32],[-41,18],[-25,18],[-8,18],[8,18],[25,18],[41,18],[41,4]], C.request, .38);
+const respFlow = flow([[41,4],[76,10],[78,36],[60,46]], C.response, .38);
+const hitFlow  = flow([[-56,32],[-28,44],[18,56],[60,46]], C.cacheHit, .3);
+const reqPulse = pulse(C.request, .55), respPulse = pulse(C.response, .55), hitPulse = pulse(C.cacheHit, .5);
+
+const ring = new THREE.Mesh(new THREE.RingGeometry(9, 10.5, 48),
+  new THREE.MeshBasicMaterial({ color:0x38bdf8, transparent:true, opacity:.2, side:THREE.DoubleSide }));
+ring.rotation.x = -Math.PI/2; ring.visible = false; scene.add(ring);
+
+/* ══════════ SIMULATION ENGINE ══════════ */
+const simCycleEl = document.getElementById('simCycle');
+const simDutyEl  = document.getElementById('simDuty');
+const simFillEl  = document.getElementById('simFill');
+const simBtn     = document.getElementById('simBtn');
+
+const sim = { ci:0, si:-1, t:0, running:true, active:null, assists:[] };
+
+function resetCounters() {
+  ['cSrc','cClm','cScore','cVer','cRule','cDec'].forEach(id => {
+    document.getElementById(id).textContent = '—';
+  });
+}
+function popCounter(id, val) {
+  const el = document.getElementById(id);
+  el.textContent = val;
+  el.classList.add('pop');
+  setTimeout(() => el.classList.remove('pop'), 500);
+}
+function clearDuty() {
+  if (sim.active) {
+    const p = reg.get(sim.active);
+    p.edges.material.color = new THREE.Color(TIER[INFO[sim.active].t].color);
+    p.edges.material.opacity = .9; p.group.scale.setScalar(1);
+  }
+  sim.assists.forEach(id => {
+    const p = reg.get(id);
+    p.edges.material.opacity = .9; p.group.scale.setScalar(1);
+  });
+  sim.active = null; sim.assists = [];
+  orbit.visible = false; setDutySprite(null);
+}
+function startStep() {
+  clearDuty();
+  const cyc = CYCLES[sim.ci];
+  const step = cyc.steps[sim.si];
+  const p = reg.get(step.id);
+  const col = new THREE.Color(step.flash || TIER[INFO[step.id].t].color);
+
+  /* activate panel */
+  p.edges.material.color = col;
+  p.edges.material.opacity = 1;
+  p.group.scale.setScalar(1.1);
+  sim.active = step.id;
+
+  /* assisting panels glow softly */
+  (step.assists || []).forEach(id => {
+    const a = reg.get(id);
+    a.edges.material.opacity = 1; a.group.scale.setScalar(1.04);
+    sim.assists.push(id);
+  });
+
+  /* orbit dots around the working panel */
+  orbit.position.copy(p.group.position);
+  orbit.visible = true;
+  orbitDots.forEach(d => d.material.color = col);
+
+  /* duty caption in 3D space, above the panel */
+  dutySprite.position.copy(p.group.position);
+  dutySprite.position.y += 11;
+  setDutySprite(step.duty);
+
+  /* HUD bar */
+  if (step.badge) { simCycleEl.textContent = step.badge[0]; simCycleEl.style.color = step.badge[1]; }
+  else { simCycleEl.textContent = '● ' + cyc.label; simCycleEl.style.color = '#34d399'; }
+  simDutyEl.textContent = INFO[step.id].title + ' — ' + step.duty;
+  simFillEl.style.width = ((sim.si + 1) / cyc.steps.length * 100) + '%';
+
+  /* counters */
+  if (step.cnt) Object.entries(step.cnt).forEach(([k, v]) => popCounter(k, v));
+}
+function advanceSim(dt) {
+  sim.t += dt;
+  const cyc = CYCLES[sim.ci];
+  if (sim.si >= 0 && sim.t < cyc.steps[sim.si].dur) return;
+  sim.t = 0; sim.si++;
+  if (sim.si >= cyc.steps.length) {
+    clearDuty(); resetCounters();
+    sim.ci = (sim.ci + 1) % CYCLES.length; sim.si = 0;
+    /* restore all edge colors */
+    reg.forEach((p, id) => {
+      p.edges.material.color = new THREE.Color(TIER[INFO[id].t].color);
+      p.edges.material.opacity = .9; p.group.scale.setScalar(1);
+    });
+  }
+  startStep();
+}
+simBtn.onclick = () => {
+  sim.running = !sim.running;
+  simBtn.textContent = sim.running ? '⏸ PAUSE DEMO' : '▶ RESUME DEMO';
+  if (!sim.running) { clearDuty(); simCycleEl.textContent = '⏸ DEMO PAUSED'; simCycleEl.style.color = '#fbbf24'; }
+  else if (sim.si >= 0) startStep();
+};
+
+/* ══════════ DRAWER ══════════ */
+const drawer = document.getElementById('drawer');
+function openDrawer(id, stepLabel) {
+  const d = INFO[id], t = TIER[d.t];
+  drawer.style.setProperty('--accent', t.color);
+  const how = d.how.map(h => `<li>${h}</li>`).join('');
+  const io = d.io ? `<div class="io">
+      <div class="box"><small>INPUT</small><span>${d.io[0]}</span></div>
+      <div class="arr">→</div>
+      <div class="box"><small>OUTPUT</small><span>${d.io[1]}</span></div></div>` : '';
+  const stats = d.stats.map(s => `<div class="stat"><b>${s[0]}</b><span>${s[1]}</span></div>`).join('');
+  drawer.innerHTML = `
+    <button id="dClose">✕</button>
+    <div><span class="dTier">${t.name}</span>${stepLabel ? `<span class="dStep">${stepLabel}</span>` : ''}</div>
+    <h2>${d.title}</h2>
+    <div class="dSub">${d.badge ? d.badge + ' · ' : ''}${d.file}</div>
+    <div class="sec"><h4>WHAT IT IS</h4><p>${d.what}</p></div>
+    <div class="sec"><h4>HOW IT WORKS</h4><ul>${how}</ul></div>
+    <div class="why"><h4>WHY IT MATTERS</h4><p>${d.why}</p></div>
+    ${io}<div class="stats">${stats}</div>`;
+  drawer.classList.add('open');
+  document.getElementById('dClose').onclick = () => deselect();
+}
+
+/* ══════════ CAMERA TWEEN ══════════ */
+let tween = null;
+const ease = k => 1 - Math.pow(1 - k, 3);
+function flyTo(pos, target, dur = 1.4, done) {
+  tween = { p0:camera.position.clone(), t0:controls.target.clone(), p1:pos, t1:target, k:0, dur, done };
+  controls.enabled = false; controls.autoRotate = false;
+}
+
+/* ══════════ SELECTION ══════════ */
+let sel = null;
+function selectPanel(id, stepLabel) {
+  if (sel && sel !== id) { const p = reg.get(sel); p.edges.material.opacity = .9; p.group.scale.setScalar(1); }
+  sel = id;
+  const p = reg.get(id), d = INFO[id], col = new THREE.Color(TIER[d.t].color);
+  p.edges.material.opacity = 1; p.group.scale.setScalar(1.07);
+  ring.visible = true; ring.material.color = col;
+  ring.position.copy(p.group.position); ring.position.y -= 4.2;
+  openDrawer(id, stepLabel);
+  const target = p.group.position.clone();
+  const dir = camera.position.clone().sub(target).normalize();
+  const pos = target.clone().add(dir.multiplyScalar(46));
+  pos.y = Math.max(pos.y, target.y + 12);
+  flyTo(pos, target);
+}
+function deselect(fly = true) {
+  if (sel) { const p = reg.get(sel); p.edges.material.opacity = .9; p.group.scale.setScalar(1); }
+  sel = null; ring.visible = false;
+  drawer.classList.remove('open');
+  if (!sim.running) { sim.running = true; simBtn.textContent = '⏸ PAUSE DEMO'; }   /* resume demo after reading */
+  if (fly) flyTo(CAM_HOME.clone(), HOME_TARGET.clone(), 1.4, () => { controls.autoRotate = true; });
+}
+
+/* ══════════ GUIDED TOUR ══════════ */
+const TOUR = ['user','frontend','cache','search','reader','writer','critic','revision','verifier','governance','result'];
+const STEP_TIME = 7;
+let tour = null;
+const tourBtn = document.getElementById('tourBtn');
+function startTour() {
+  sim.running = false; simBtn.textContent = '▶ RESUME DEMO'; clearDuty();
+  tour = { i:0, t:0 }; tourBtn.textContent = '■ STOP TOUR';
+  selectPanel(TOUR[0], `GUIDED TOUR · STEP 1 / ${TOUR.length}`);
+}
+function stopTour() { tour = null; tourBtn.textContent = '▶ GUIDED TOUR'; }
+tourBtn.onclick = () => tour ? (stopTour(), deselect()) : startTour();
+
+/* ══════════ INTERACTION ══════════ */
+const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
+function pick(e) {
+  mouse.x = (e.clientX / innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+  ray.setFromCamera(mouse, camera);
+  const h = ray.intersectObjects(boxMeshes);
+  return h.length ? h[0].object.userData.id : null;
+}
+let downX = 0, downY = 0;
+addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; });
+addEventListener('pointerup', e => {
+  if (e.target !== renderer.domElement) return;
+  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 6) return;
+  const id = pick(e);
+  if (id) {
+    if (tour) stopTour();
+    if (sim.running) { sim.running = false; simBtn.textContent = '▶ RESUME DEMO'; clearDuty(); simCycleEl.textContent = '⏸ PAUSED — READING PANEL'; simCycleEl.style.color = '#fbbf24'; }
+    selectPanel(id);
+  }
+  else if (sel) deselect();
+});
+addEventListener('pointermove', e => {
+  if (e.target !== renderer.domElement) return;
+  const id = pick(e);
+  renderer.domElement.style.cursor = id ? 'pointer' : 'grab';
+  reg.forEach((p, pid) => {
+    if (pid !== sel && pid !== sim.active && !sim.assists.includes(pid))
+      p.edges.material.opacity = (pid === id) ? 1 : .9;
+  });
+});
+addEventListener('dblclick', () => { if (tour) stopTour(); deselect(false); flyTo(CAM_HOME.clone(), HOME_TARGET.clone(), 1.2, () => { controls.autoRotate = true; }); });
+addEventListener('keydown', e => { if (e.key === 'Escape') { if (tour) stopTour(); deselect(); } });
+
+/* ══════════ ANIMATE ══════════ */
+const clock = new THREE.Clock();
+let intro = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), .05);
+  const t = clock.elapsedTime;
+
+  if (intro < 1) {
+    intro = Math.min(1, intro + dt / 3);
+    camera.position.lerpVectors(CAM_START, CAM_HOME, ease(intro));
+    camera.lookAt(HOME_TARGET);
+    if (intro >= 1) { sim.si = 0; startStep(); }      /* demo starts after fly-in */
+  } else if (tween) {
+    tween.k += dt / tween.dur;
+    const e = ease(Math.min(tween.k, 1));
+    camera.position.lerpVectors(tween.p0, tween.p1, e);
+    controls.target.lerpVectors(tween.t0, tween.t1, e);
+    camera.lookAt(controls.target);
+    if (tween.k >= 1) { const d = tween.done; tween = null; controls.enabled = true; d && d(); }
+  } else controls.update();
+
+  if (sim.running && !tour) advanceSim(dt);
+
+  if (tour) {
+    tour.t += dt;
+    if (tour.t >= STEP_TIME) {
+      tour.t = 0; tour.i++;
+      if (tour.i >= TOUR.length) { stopTour(); deselect(); }
+      else selectPanel(TOUR[tour.i], `GUIDED TOUR · STEP ${tour.i + 1} / ${TOUR.length}`);
+    }
+  }
+
+  /* active panel heartbeat */
+  if (sim.active) {
+    const p = reg.get(sim.active);
+    p.group.scale.setScalar(1.08 + .03 * Math.sin(t * 6));
+  }
+  /* orbit dots spin around the working panel */
+  if (orbit.visible) {
+    orbitDots.forEach((d, i) => {
+      const a = t * 2.4 + i * (Math.PI * 2 / 3);
+      d.position.set(Math.cos(a) * 8.5, Math.sin(t * 3 + i) * 1.2, Math.sin(a) * 6.5);
+    });
+  }
+
+  /* ambient flow pulses */
+  const rp = reqFlow.curve.getPointAt((t % 7) / 7);
+  reqPulse.core.position.copy(rp); reqPulse.glow.position.copy(rp);
+  const sp = respFlow.curve.getPointAt(((t + 2.2) % 5) / 5);
+  respPulse.core.position.copy(sp); respPulse.glow.position.copy(sp);
+  const cyc = t % 9, vis = cyc < 2.2;
+  hitPulse.core.visible = hitPulse.glow.visible = vis;
+  if (vis) { const hp = hitFlow.curve.getPointAt(cyc / 2.2); hitPulse.core.position.copy(hp); hitPulse.glow.position.copy(hp); }
+
+  if (ring.visible) {
+    ring.material.opacity = .14 + .08 * Math.sin(t * 4);
+    ring.scale.setScalar(1 + .04 * Math.sin(t * 4));
+  }
+  renderer.render(scene, camera);
+}
+animate();
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
