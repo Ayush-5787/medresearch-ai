@@ -19,6 +19,15 @@ def logout():
     """Log out current user."""
     st.session_state.authenticated = False
     st.session_state.user = None
+
+    # Clear the persistent cookie
+    try:
+        from streamlit_cookies_controller import CookieController
+        cc = CookieController()
+        cc.remove("medresearch_user")
+    except Exception:
+        pass
+
     st.rerun()
 
 
@@ -27,11 +36,9 @@ def render_login_screen():
 
     init_session()
 
-    # Center column
     col1, col2, col3 = st.columns([1, 2, 1])
 
     with col2:
-        # Logo + title
         logo_path = Path(__file__).parent.parent / "docs" / "logo.png"
         if logo_path.exists():
             st.image(str(logo_path), width=120)
@@ -45,10 +52,8 @@ def render_login_screen():
 
         st.markdown("---")
 
-        # Tabs for Login / Signup
         tab1, tab2 = st.tabs(["🔑 Login", "✨ Sign Up"])
 
-        # ---------- LOGIN TAB ----------
         with tab1:
             with st.form("login_form"):
                 st.markdown("### Welcome back")
@@ -64,12 +69,27 @@ def render_login_screen():
                         if user:
                             st.session_state.authenticated = True
                             st.session_state.user = user
+
+                            try:
+                                from streamlit_cookies_controller import CookieController
+                                cc = CookieController()
+                                cc.set(
+                                    "medresearch_user",
+                                    {
+                                        "id": user.get("id", 0),
+                                        "username": user.get("username", ""),
+                                        "email": user.get("email", ""),
+                                    },
+                                    max_age=30 * 24 * 60 * 60,
+                                )
+                            except Exception:
+                                pass
+
                             st.success(f"Welcome back, {user['username']}!")
                             st.rerun()
                         else:
                             st.error("❌ Invalid username or password")
 
-        # ---------- SIGNUP TAB ----------
         with tab2:
             with st.form("signup_form"):
                 st.markdown("### Create your account")

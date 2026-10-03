@@ -5,7 +5,6 @@ MedResearch AI — Streamlit UI (Multi-Language + Voice + Image + PDF + Auth + C
 from dotenv import load_dotenv
 from pathlib import Path
 
-# Load environment variables FIRST, before any other imports
 load_dotenv(Path(__file__).parent.parent / ".env")
 
 import asyncio
@@ -14,9 +13,8 @@ import time
 from datetime import datetime
 import sys
 
-# NEW — for embedding the architecture viewer
 import streamlit.components.v1 as components
-from urllib.request import urlopen
+from streamlit_cookies_controller import CookieController
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -46,13 +44,18 @@ st.set_page_config(
 
 
 # ============================================================
+# COOKIE CONTROLLER — persistent login across browser sessions
+# ============================================================
+
+controller = CookieController()
+
+
+# ============================================================
 # SESSION STATE
 # ============================================================
 
 if "view" not in st.session_state:
     st.session_state.view = "main"
-
-# Persist last result across Streamlit reruns (button clicks)
 if "result" not in st.session_state:
     st.session_state.result = None
 if "audit_report" not in st.session_state:
@@ -62,13 +65,53 @@ if "cached" not in st.session_state:
 
 
 # ============================================================
-# AUTHENTICATION GATE
+# AUTHENTICATION GATE (with cookie-based persistence)
 # ============================================================
 
 init_session()
 
+# Try to restore session from cookie (survives browser refresh / new tab)
+if not st.session_state.get("authenticated", False):
+    try:
+        cookie_user = controller.get("medresearch_user")
+        if cookie_user and isinstance(cookie_user, dict):
+            st.session_state.authenticated = True
+            st.session_state.user = {
+                "id": cookie_user.get("id", 0),
+                "username": cookie_user.get("username", "User"),
+                "email": cookie_user.get("email", ""),
+            }
+    except Exception:
+        # First load — cookies component still loading
+        pass
+
 if not st.session_state.get("authenticated", False):
     render_login_screen()
+    st.stop()
+
+
+# ============================================================
+# ARCHITECTURE VIEW — FULL PAGE (renders before sidebar)
+# ============================================================
+
+if st.session_state.get("view") == "architecture":
+    col_back, col_spacer = st.columns([1, 6])
+    with col_back:
+        if st.button("← Back to App", key="back_from_arch", use_container_width=True):
+            st.session_state.view = "main"
+            st.rerun()
+
+    st.markdown("## 🏛 MedResearch AI — Live 3D Architecture")
+    st.caption("Click any panel for details · ▶ Guided Tour walks the pipeline · drag to orbit · scroll to zoom")
+
+    arch_path = Path(__file__).parent.parent / "architecture.html"
+    if arch_path.exists():
+        with open(arch_path, "r", encoding="utf-8") as f:
+            html_content = f.read()
+        components.html(html_content, height=1000, scrolling=True)
+    else:
+        st.error(f"❌ architecture.html not found at: {arch_path}")
+
     st.stop()
 
 
@@ -95,7 +138,7 @@ st.markdown("""
 
 
 # ============================================================
-# INITIALIZE HANDLERS
+# HANDLERS
 # ============================================================
 
 @st.cache_resource
@@ -128,39 +171,22 @@ with st.sidebar:
     st.markdown("---")
 
     if st.button("🚪 Logout", use_container_width=True):
+        # Clear cookie on logout
+        try:
+            controller.remove("medresearch_user")
+        except Exception:
+            pass
         logout()
 
-    # ============================================================
-    # NEW — INTERACTIVE ARCHITECTURE VIEWER
-    # ============================================================
     st.markdown("---")
-    ARCH_URL = "https://ayush-5787.github.io/medresearch-ai/architecture.html"
-
-    st.link_button(
-        "🏛 Explore System Architecture",
-        url=ARCH_URL,
+    if st.button(
+        "🏛 View Full Architecture",
         use_container_width=True,
-        help="Live 3D simulation — every component performs its duty. Click panels for explanations.",
-    )
-
-    with st.expander("👁 View inside app"):
-        arch_html = None
-        try:
-            with urlopen(ARCH_URL, timeout=6) as resp:
-                arch_html = resp.read().decode("utf-8")
-        except Exception:
-            local_arch = Path(__file__).parent.parent / "architecture.html"
-            if local_arch.exists():
-                arch_html = local_arch.read_text(encoding="utf-8")
-
-        if arch_html:
-            components.html(arch_html, height=640, scrolling=False)
-            st.caption("💡 For the full-screen experience, use the button above.")
-        else:
-            st.caption("⚠️ Viewer unavailable offline — use the button above when online.")
-    # ============================================================
-    # END NEW
-    # ============================================================
+        key="view_arch_btn",
+        help="Interactive 3D simulation of the entire system — full screen",
+    ):
+        st.session_state.view = "architecture"
+        st.rerun()
 
     st.markdown("---")
     st.markdown("**About**")
@@ -189,6 +215,7 @@ with st.sidebar:
     - 🛡️ Governance (6 rules)
     - ✅ Per-claim verification
     - ⚡ Response cache (saves tokens)
+    - 🏛 Interactive 3D architecture
     """)
     st.markdown("---")
     st.markdown("**⚡ Cache Stats**")
@@ -371,7 +398,6 @@ async def run_pipeline(question: str, language: str, country: str):
 
 
 if run_button and question:
-    # Check cache first
     cached = None
     try:
         cached = response_cache.get(question, selected_lang, selected_country)
@@ -379,7 +405,6 @@ if run_button and question:
         st.warning(f"Cache read error: {e}")
 
     if cached:
-        # ---------- CACHE HIT ----------
         class _V:
             def __init__(self, data):
                 results = data.get("results", []) if isinstance(data, dict) else []
@@ -418,7 +443,6 @@ if run_button and question:
         st.session_state.audit_report = _A(cached["decision"])
         st.session_state.cached = cached
     else:
-        # ---------- CACHE MISS ----------
         with st.spinner("🔄 Running 6-agent pipeline... This takes ~2-3 minutes."):
             try:
                 result = asyncio.run(run_pipeline(question, selected_lang, selected_country))
@@ -444,7 +468,7 @@ if run_button and question:
 
 
 # ============================================================
-# RENDER RESULT (persists across reruns via session_state)
+# RENDER RESULT
 # ============================================================
 
 if st.session_state.get("result") is not None:
@@ -460,7 +484,6 @@ if st.session_state.get("result") is not None:
             f"Asked **{cached['hit_count']}** time(s) before"
         )
 
-    # ---------- TIMELINE ----------
     st.markdown("### ⏱️ Agent Timeline")
     timeline_data = [
         ("🔍 Search Agent", f"{len(result.sources)} sources", result.stage_timings.get("search_ms", 0)),
@@ -482,7 +505,6 @@ if st.session_state.get("result") is not None:
             unsafe_allow_html=True
         )
 
-    # ---------- METRICS ----------
     st.markdown("---")
     c1, c2, c3, c4 = st.columns(4)
     with c1:
@@ -494,7 +516,6 @@ if st.session_state.get("result") is not None:
     with c4:
         st.markdown(f'<div class="metric-card"><div class="metric-value">{audit_report.rules_passed}/6</div><div class="metric-label">Rules Passed</div></div>', unsafe_allow_html=True)
 
-    # ---------- DECISION ----------
     st.markdown("---")
     if audit_report.decision == "PASS":
         st.markdown('<div class="status-pass">✅ PASS — All governance rules passed</div>', unsafe_allow_html=True)
@@ -503,12 +524,10 @@ if st.session_state.get("result") is not None:
     else:
         st.markdown('<div class="status-refuse">🚫 REFUSED — Answer not safe to display</div>', unsafe_allow_html=True)
 
-    # ---------- ANSWER OR REFUSAL ----------
     if audit_report.decision in ("PASS", "BLOCKED"):
         st.markdown("### 📝 Answer")
         st.markdown(result.answer)
 
-        # ---------- VOICE ----------
         st.markdown("### 🔊 Listen to Answer")
         st.caption("Hear the answer read aloud in your language.")
 
@@ -537,7 +556,6 @@ if st.session_state.get("result") is not None:
                     if audio_bytes:
                         st.audio(audio_bytes, format="audio/mp3", autoplay=True)
 
-        # ---------- PDF ----------
         st.markdown("### 📄 Download Report")
         st.caption("Download a professional PDF with the answer, sources, verification, and governance report.")
 
@@ -563,7 +581,6 @@ if st.session_state.get("result") is not None:
         except Exception as e:
             st.warning(f"⚠️ PDF error: {str(e)[:100]}")
 
-        # ---------- VERIFICATION ----------
         with st.expander(f"📊 Verification Report ({result.verification.verified_count}/{result.verification.total_claims} verified)"):
             for v in result.verification.results:
                 if isinstance(v, dict):
@@ -586,7 +603,6 @@ if st.session_state.get("result") is not None:
                     st.caption(f"Evidence: {evidence[:200]}...")
                 st.markdown("---")
     else:
-        # ---------- REFUSAL ----------
         refusal_builder = RefusalBuilder()
         try:
             refusal = refusal_builder.build(result, audit_report)
@@ -613,7 +629,6 @@ if st.session_state.get("result") is not None:
         </div>
         """, unsafe_allow_html=True)
 
-    # ---------- GOVERNANCE ----------
     st.markdown("---")
     st.markdown("### 🛡️ Governance Report")
     for rule in audit_report.rules:
@@ -625,7 +640,6 @@ if st.session_state.get("result") is not None:
             if rule.message:
                 st.write(f"**Message:** {rule.message}")
 
-    # ---------- EVIDENCE GRAPH ----------
     if result.claims:
         st.markdown("---")
         st.markdown("### 🕸️ Evidence Graph")
@@ -665,5 +679,4 @@ if st.session_state.get("result") is not None:
 # ============================================================
 
 st.markdown("---")
-# NEW — added architecture link to footer
-st.caption("MedResearch AI — Built by Ayush Nandan | [GitHub](https://github.com/Ayush-5787/medresearch-ai) | [🏛 Architecture](https://ayush-5787.github.io/medresearch-ai/architecture.html)")
+st.caption("MedResearch AI — Built by Ayush Nandan | [GitHub](https://github.com/Ayush-5787/medresearch-ai)")
