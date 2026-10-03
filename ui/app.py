@@ -14,6 +14,10 @@ import time
 from datetime import datetime
 import sys
 
+# NEW — for embedding the architecture viewer
+import streamlit.components.v1 as components
+from urllib.request import urlopen
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from agents.orchestrator import MedResearchPipeline
@@ -125,6 +129,38 @@ with st.sidebar:
 
     if st.button("🚪 Logout", use_container_width=True):
         logout()
+
+    # ============================================================
+    # NEW — INTERACTIVE ARCHITECTURE VIEWER
+    # ============================================================
+    st.markdown("---")
+    ARCH_URL = "https://ayush-5787.github.io/medresearch-ai/architecture.html"
+
+    st.link_button(
+        "🏛 Explore System Architecture",
+        url=ARCH_URL,
+        use_container_width=True,
+        help="Live 3D simulation — every component performs its duty. Click panels for explanations.",
+    )
+
+    with st.expander("👁 View inside app"):
+        arch_html = None
+        try:
+            with urlopen(ARCH_URL, timeout=6) as resp:
+                arch_html = resp.read().decode("utf-8")
+        except Exception:
+            local_arch = Path(__file__).parent.parent / "architecture.html"
+            if local_arch.exists():
+                arch_html = local_arch.read_text(encoding="utf-8")
+
+        if arch_html:
+            components.html(arch_html, height=640, scrolling=False)
+            st.caption("💡 For the full-screen experience, use the button above.")
+        else:
+            st.caption("⚠️ Viewer unavailable offline — use the button above when online.")
+    # ============================================================
+    # END NEW
+    # ============================================================
 
     st.markdown("---")
     st.markdown("**About**")
@@ -629,4 +665,5 @@ if st.session_state.get("result") is not None:
 # ============================================================
 
 st.markdown("---")
-st.caption("MedResearch AI — Built by Ayush Nandan | [GitHub](https://github.com/Ayush-5787/medresearch-ai)")
+# NEW — added architecture link to footer
+st.caption("MedResearch AI — Built by Ayush Nandan | [GitHub](https://github.com/Ayush-5787/medresearch-ai) | [🏛 Architecture](https://ayush-5787.github.io/medresearch-ai/architecture.html)")
