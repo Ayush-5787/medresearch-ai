@@ -1,7 +1,9 @@
-# Environment
+# Environment & secrets
 .env
 .env.local
 *.env
+.streamlit/secrets.toml
+.streamlit/cache
 
 # Python
 __pycache__/
@@ -16,11 +18,13 @@ dist/
 venv/
 env/
 
-# Vector DB
-chroma_db/
+# Databases (SQLite)
+*.db
+*.db-journal
 *.sqlite3
 
-# Models
+# Vector DB & Models
+chroma_db/
 medical_classifier/
 *.bin
 *.safetensors
@@ -37,14 +41,14 @@ Thumbs.db
 # Logs
 *.log
 logs/
+evals_*.txt
+evals_full_log.txt
+evals_output/
 
 # Testing
 .pytest_cache/
 .coverage
 htmlcov/
-
-# Streamlit
-.streamlit/secrets.toml
 
 # Test outputs
 test_report.pdf
@@ -52,11 +56,3 @@ test_*.png
 test_*.mp3
 test_report.json
 evidence_graph.json
-
-# Streamlit
-.streamlit/secrets.toml
-.streamlit/cache
-
-# Python cache
-__pycache__/
-*.pyc
