@@ -152,6 +152,7 @@ class VerificationReport(BaseModel):
     partial_count: int = Field(default=0)
     not_verified_count: int = Field(default=0)
     contradicted_count: int = Field(default=0)
+    error_count: int = Field(default=0, description="Claims that could not be verified due to infrastructure errors — excluded from rate")
     verification_rate: float = Field(default=0.0, ge=0.0, le=1.0)
     overall_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     verdict: str = Field(default="PENDING", description="PASS | REVIEW | FAIL")

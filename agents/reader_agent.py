@@ -1,6 +1,10 @@
 """
 MedResearch AI — Reader Agent
 Reads sources and extracts structured medical claims.
+
+v1.1: Each claim now carries the source text it was extracted from
+(verification_notes). Without this, the Verifier has no evidence to
+check claims against and every claim returns NOT_VERIFIED.
 """
 
 import asyncio
@@ -122,6 +126,7 @@ JSON output:"""
                     source_urls=[source.url],
                     confidence=float(f.get("confidence", 0.7)),
                     verified=False,
+                    verification_notes=text[:2000],  # evidence the Verifier checks against
                 )
                 for f in facts
                 if isinstance(f, dict) and f.get("claim")
@@ -173,4 +178,4 @@ JSON output:"""
         return unique
 
 
-print("[reader_agent] ReaderAgent loaded")
+print("[reader_agent] ReaderAgent loaded (v1.1: claims carry source text)")

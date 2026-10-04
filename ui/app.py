@@ -411,7 +411,9 @@ if run_button and question:
         class _A:
             def __init__(self, decision):
                 self.decision = decision
-                self.rules_passed = 6
+                # Cached results don't store the full audit report — only
+                # claim a perfect score for PASS instead of every decision.
+                self.rules_passed = 6 if decision == "PASS" else 0
                 self.rules = []
 
         st.session_state.result = CachedResult(cached)
@@ -428,10 +430,15 @@ if run_button and question:
         audit_gate = AuditGate()
         audit_report = audit_gate.evaluate(result)
 
+        # Only cache successful runs — caching an empty/failed result would
+        # serve the failure instantly on retry, even after providers recover.
         try:
-            saved = response_cache.set(question, selected_lang, selected_country, result)
-            if saved:
-                st.caption("💾 Answer saved to cache — future identical questions will be instant")
+            if result.answer.strip():
+                saved = response_cache.set(question, selected_lang, selected_country, result)
+                if saved:
+                    st.caption("💾 Answer saved to cache — future identical questions will be instant")
+            else:
+                st.caption("⚠️ Empty result not cached — the next attempt will re-run the pipeline")
         except Exception as e:
             st.caption(f"⚠️ Could not save to cache: {e}")
 
@@ -492,14 +499,21 @@ if st.session_state.get("result") is not None:
         st.markdown(f'<div class="metric-card"><div class="metric-value">{audit_report.rules_passed}/6</div><div class="metric-label">Rules Passed</div></div>', unsafe_allow_html=True)
 
     st.markdown("---")
+    # Distinguish genuine safety refusals from infrastructure failures:
+    # empty answer + no claims = nothing was produced — that is
+    # "unavailable", not "unsafe".
+    nothing_produced = (not result.answer.strip()) and (len(result.claims) == 0)
+
     if audit_report.decision == "PASS":
         st.markdown('<div class="status-pass">✅ PASS — All governance rules passed</div>', unsafe_allow_html=True)
-    elif audit_report.decision == "BLOCKED":
+    elif audit_report.decision == "BLOCKED" and not nothing_produced:
         st.markdown('<div class="status-block">⚠️ BLOCKED — Answer shown with warnings</div>', unsafe_allow_html=True)
+    elif audit_report.decision == "UNAVAILABLE" or nothing_produced:
+        st.markdown('<div class="status-block">⚠️ UNAVAILABLE — Research could not complete. No answer was produced.</div>', unsafe_allow_html=True)
     else:
         st.markdown('<div class="status-refuse">🚫 REFUSED — Answer not safe to display</div>', unsafe_allow_html=True)
 
-    if audit_report.decision in ("PASS", "BLOCKED"):
+    if audit_report.decision in ("PASS", "BLOCKED") and not nothing_produced:
         st.markdown("### 📝 Answer")
         st.markdown(result.answer)
 
@@ -573,85 +587,4 @@ if st.session_state.get("result") is not None:
 
                 icon = {"VERIFIED": "✅", "PARTIALLY_VERIFIED": "🟡", "NOT_VERIFIED": "🔴", "CONTRADICTED": "⚠️"}.get(verdict, "❓")
                 st.markdown(f"**{icon} Claim {claim_idx + 1}:** {claim_text[:120]}...")
-                st.caption(f"Verdict: {verdict} ({conf:.2f})")
-                if evidence:
-                    st.caption(f"Evidence: {evidence[:200]}...")
-                st.markdown("---")
-    else:
-        refusal_builder = RefusalBuilder()
-        try:
-            refusal = refusal_builder.build(result, audit_report)
-        except Exception:
-            refusal = type("R", (), {
-                "title": "Refused",
-                "reason": "This question cannot be answered safely.",
-                "details": "Please consult a qualified professional.",
-                "next_steps": ["Consult a doctor"],
-                "trusted_sources": [],
-                "emergency_note": "Call your local emergency number if urgent.",
-            })()
-
-        st.markdown(f"""
-        <div class="refusal-box">
-            <h3 style="color: #f87171;">⚠️ {refusal.title}</h3>
-            <p><strong>Reason:</strong> {refusal.reason}</p>
-            <p><strong>Details:</strong> {refusal.details}</p>
-            <h4>What you can do:</h4>
-            <ol>{''.join(f'<li>{s}</li>' for s in refusal.next_steps)}</ol>
-            <h4>Trusted sources:</h4>
-            <ul>{''.join(f'<li><a href="{s["url"]}" target="_blank">{s["name"]}</a> — {s["why"]}</li>' for s in refusal.trusted_sources)}</ul>
-            <p style="color: #f87171;"><strong>🚨 {refusal.emergency_note}</strong></p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("---")
-    st.markdown("### 🛡️ Governance Report")
-    for rule in audit_report.rules:
-        icon = "✅" if rule.passed else "❌"
-        with st.expander(f"{icon} {rule.rule_id}: {rule.name}"):
-            st.write(f"**Actual:** {rule.actual_value}")
-            st.write(f"**Threshold:** {rule.threshold}")
-            st.write(f"**Severity:** {rule.severity}")
-            if rule.message:
-                st.write(f"**Message:** {rule.message}")
-
-    if result.claims:
-        st.markdown("---")
-        st.markdown("### 🕸️ Evidence Graph")
-        builder = EvidenceGraphBuilder()
-        try:
-            graph = builder.build(result)
-            ca, cb, cc = st.columns(3)
-            with ca:
-                st.metric("Claims", graph.stats["total_claims"])
-            with cb:
-                st.metric("Sources", graph.stats["total_sources"])
-            with cc:
-                st.metric("Citations", graph.stats["total_edges"])
-
-            st.markdown("**Claims → Sources**")
-            claim_to_sources = {}
-            for edge in graph.edges:
-                claim_to_sources.setdefault(edge.source_id, []).append(edge.target_id)
-            for i, claim in enumerate(result.claims[:10]):
-                cid = f"claim_{i+1}"
-                sources = claim_to_sources.get(cid, [])
-                if sources:
-                    claim_text = claim.text if hasattr(claim, "text") else str(claim)
-                    with st.expander(f"Claim {i+1}: {claim_text[:80]}..."):
-                        st.write(f"**Full claim:** {claim_text}")
-                        st.write(f"**Supported by:** {len(sources)} source(s)")
-        except Exception as e:
-            st.caption(f"Evidence graph unavailable for cached result: {str(e)[:80]}")
-
-    st.caption(f"Total: {len(result.claims)} claims connected to {len(result.sources)} sources")
-    st.markdown("---")
-    st.caption(f"⚠️ {result.disclaimer}")
-
-
-# ============================================================
-# FOOTER
-# ============================================================
-
-st.markdown("---")
-st.caption("MedResearch AI — Built by Ayush Nandan | [GitHub](https://github.com/Ayush-5787/medresearch-ai)")
+                st.caption(f"Verdict: {

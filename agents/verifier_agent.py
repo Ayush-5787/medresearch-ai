@@ -13,6 +13,14 @@ Verdicts:
 - PARTIALLY_VERIFIED: source supports part of the claim
 - NOT_VERIFIED: source doesn't mention this
 - CONTRADICTED: source says the opposite
+- ERROR: verification could not run (infrastructure) — excluded from rate
+
+History (report-ready):
+- v0 counted LLM/infra failures as NOT_VERIFIED, contaminating the
+  verification rate with infrastructure noise. v1 introduces the ERROR
+- verdict: infra failures are excluded from the rate denominator.
+- v0 silently self-verified claims lacking source text (claim checked
+  against itself → trivial VERIFIED). v1 returns honest NOT_VERIFIED.
 """
 
 import asyncio
@@ -67,7 +75,7 @@ JSON output:"""
 
     def __init__(self):
         super().__init__(name="VerifierAgent")
-        self.llm_delay_seconds = 5  # Respect Groq rate limits
+        self.llm_delay_seconds = 2  # Respect provider rate limits
         self.max_source_chars = 3000  # Truncate long source text
 
     async def run(self, answer: ResearchAnswer) -> VerificationReport:
@@ -142,14 +150,16 @@ JSON output:"""
             )
             parsed = self._parse_json(response)
         except Exception as e:
+            # Infrastructure failure (rate limit, network, provider down).
+            # Verdict is ERROR — must NOT count as a logic failure.
             self.log_step("error", f"claim {index}", f"LLM failed: {str(e)[:80]}")
             return VerificationResult(
                 claim_index=index,
                 claim_text=claim.text,
                 source_url=source_url,
-                verdict="NOT_VERIFIED",
+                verdict="ERROR",
                 confidence=0.0,
-                reasoning=f"Verification failed: {str(e)[:100]}",
+                reasoning=f"Verification failed (infrastructure): {str(e)[:100]}",
             )
 
         return VerificationResult(
@@ -163,13 +173,13 @@ JSON output:"""
         )
 
     def _get_source_text(self, claim: Claim) -> str:
-        """Get the source text for verification."""
-        # Use source_urls as keys; the actual source text is in claim.verification_notes
-        # For now, use claim text + any available context
-        if claim.verification_notes:
-            return claim.verification_notes
-        # Fallback: use the claim text itself (self-verify)
-        return claim.text
+        """Get the source text for verification.
+
+        v1 fix: v0 fell back to claim.text — the claim was checked against
+        itself, trivially producing VERIFIED and inflating the rate.
+        Missing source text is now an honest NOT_VERIFIED upstream.
+        """
+        return claim.verification_notes or ""
 
     def _parse_json(self, response: str) -> dict:
         """Parse JSON from LLM response."""
@@ -191,22 +201,40 @@ JSON output:"""
             return {}
 
     def _build_report(self, results: List[VerificationResult]) -> VerificationReport:
-        """Build the final VerificationReport."""
+        """Build the final VerificationReport.
+
+        ERROR results are EXCLUDED from the verification rate and confidence:
+        infrastructure failures must not count as logic failures
+        (eval contamination guard).
+        """
         total = len(results)
         verified = sum(1 for r in results if r.verdict == "VERIFIED")
         partial = sum(1 for r in results if r.verdict == "PARTIALLY_VERIFIED")
         not_verified = sum(1 for r in results if r.verdict == "NOT_VERIFIED")
         contradicted = sum(1 for r in results if r.verdict == "CONTRADICTED")
+        errors = sum(1 for r in results if r.verdict == "ERROR")
 
-        # Verification rate = verified + 0.5 * partial / total
+        valid_total = total - errors  # claims actually evaluated
+
+        # Verification rate = (verified + 0.5 * partial) / valid claims
         weighted = verified + 0.5 * partial
-        rate = weighted / total if total > 0 else 0.0
+        rate = weighted / valid_total if valid_total > 0 else 0.0
 
-        # Overall confidence = avg confidence
-        avg_conf = sum(r.confidence for r in results) / total if total > 0 else 0.0
+        # Overall confidence = avg confidence over valid results only
+        valid_results = [r for r in results if r.verdict != "ERROR"]
+        avg_conf = (
+            sum(r.confidence for r in valid_results) / len(valid_results)
+            if valid_results else 0.0
+        )
 
         # Verdict
-        if rate >= 0.9:
+        if valid_total == 0:
+            verdict = "ERROR"
+            reasoning = (
+                f"All {total} verification(s) failed due to infrastructure errors — "
+                "not a logic failure. Excluded from pass-rate denominator."
+            )
+        elif rate >= 0.9:
             verdict = "PASS"
             reasoning = "High verification rate — answer trusted."
         elif rate >= 0.6:
@@ -216,6 +244,9 @@ JSON output:"""
             verdict = "FAIL"
             reasoning = "Low verification rate — answer not trusted."
 
+        if errors > 0 and valid_total > 0:
+            reasoning += f" ({errors} claim(s) errored — excluded from rate.)"
+
         return VerificationReport(
             results=results,
             total_claims=total,
@@ -223,6 +254,7 @@ JSON output:"""
             partial_count=partial,
             not_verified_count=not_verified,
             contradicted_count=contradicted,
+            error_count=errors,
             verification_rate=round(rate, 3),
             overall_confidence=round(avg_conf, 3),
             verdict=verdict,
