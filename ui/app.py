@@ -15,7 +15,6 @@ import sys
 
 import streamlit.components.v1 as components
 
-
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from agents.orchestrator import MedResearchPipeline
@@ -43,9 +42,6 @@ st.set_page_config(
 )
 
 
-
-
-
 # ============================================================
 # SESSION STATE
 # ============================================================
@@ -69,6 +65,7 @@ init_session()
 if not st.session_state.get("authenticated", False):
     render_login_screen()
     st.stop()
+
 
 # ============================================================
 # ARCHITECTURE VIEW — FULL PAGE (renders before sidebar)
@@ -168,7 +165,7 @@ with st.sidebar:
     st.markdown(
         "A governed multi-agent research system that answers "
         "medical questions with traceable, verified citations. "
-        "Supports 71 languages, voice output, image input, and PDF export."
+        "v1 ships English-only; multi-language support is on the roadmap."
     )
     st.markdown("---")
     st.markdown("**Pipeline**")
@@ -183,8 +180,8 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("**Features**")
     st.markdown("""
-    - 🌐 Multi-language (71 languages)
-    - 🔊 Voice output (30 languages)
+    - 🌐 English-only pipeline (v1)
+    - 🔊 Voice output
     - 📷 Image upload (OCR)
     - 📄 PDF report download
     - 🛡️ Governance (6 rules)
@@ -212,7 +209,7 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("**Links**")
     st.markdown("[GitHub Repo](https://github.com/Ayush-5787/medresearch-ai)")
-    st.caption("Powered by Groq · Tavily · PubMed · Tesseract")
+    st.caption("Powered by Groq · Gemini · Tavily · PubMed · Tesseract")
 
 
 # ============================================================
@@ -224,7 +221,7 @@ with col_logo:
     st.image(str(Path(__file__).parent.parent / "docs" / "logo.png"), width=80)
 with col_title:
     st.markdown('<div class="main-header">MedResearch AI</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">Governed Multi-Agent Research System — 71 Languages, Voice, Image, PDF</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-header">Governed Multi-Agent Research System — English-only (v1) · Voice · Image · PDF</div>', unsafe_allow_html=True)
 
 
 # ============================================================
@@ -235,15 +232,15 @@ st.markdown('<div class="lang-country-box">', unsafe_allow_html=True)
 col_lang, col_country, col_spacer = st.columns([1, 1, 2])
 
 with col_lang:
-    languages = {"auto": "🌐 Auto-detect"}
-    for code, name in lang_handler.list_languages().items():
-        languages[code] = f"{name} ({code})"
-    selected_lang = st.selectbox(
-        "🌐 Language",
-        options=list(languages.keys()),
-        format_func=lambda x: languages[x],
+    st.selectbox(
+        "🌐 Language (v1: English only)",
+        options=["en"],
+        format_func=lambda x: "🇬🇧 English",
         index=0,
+        disabled=True,
+        help="v1 ships English-only. Multi-language retrieval is on the roadmap.",
     )
+    selected_lang = "en"
 
 with col_country:
     countries = {"DEFAULT": "🌍 International"}
@@ -289,16 +286,16 @@ with st.container():
         with col_text:
             with st.spinner("🔄 Extracting text from image..."):
                 image_bytes = uploaded_image.getvalue()
-                ocr_lang = "eng+hin" if selected_lang == "hi" else "eng"
-                result = image_reader.extract_text(image_bytes, lang=ocr_lang)
+                ocr_lang = "eng"
+                ocr_result = image_reader.extract_text(image_bytes, lang=ocr_lang)
 
-            if result["error"]:
-                st.error(f"❌ OCR error: {result['error']}")
+            if ocr_result["error"]:
+                st.error(f"❌ OCR error: {ocr_result['error']}")
                 extracted_image_text = ""
-            elif result["text"]:
-                st.success(f"✅ Extracted ({result['word_count']} words, confidence {result['confidence']}):")
-                st.info(f"**{result['text']}**")
-                extracted_image_text = result["text"]
+            elif ocr_result["text"]:
+                st.success(f"✅ Extracted ({ocr_result['word_count']} words, confidence {ocr_result['confidence']}):")
+                st.info(f"**{ocr_result['text']}**")
+                extracted_image_text = ocr_result["text"]
             else:
                 st.warning("⚠️ No text detected in image.")
                 extracted_image_text = ""
@@ -316,10 +313,10 @@ with st.container():
 st.markdown("**Try these questions:**")
 sample_cols = st.columns(4)
 sample_questions = [
-    ("🇬🇧 English", "What are the side effects of metformin?"),
-    ("🇮🇳 हिन्दी", "मेटफॉर्मिन के दुष्प्रभाव क्या हैं?"),
-    ("🇪🇸 Español", "¿Cuáles son los efectos secundarios de la metformina?"),
-    ("🇫🇷 Français", "Quels sont les effets secondaires de la metformine?"),
+    ("💊 Metformin", "What are the side effects of metformin?"),
+    ("💊 Ibuprofen", "What are the side effects of ibuprofen?"),
+    ("🩺 Diabetes", "What are the symptoms of diabetes?"),
+    ("🚫 Refusal test", "Should I take metformin for my diabetes?"),
 ]
 
 clicked_question = None
@@ -344,10 +341,10 @@ else:
     default_q = "What are the side effects of metformin?"
 
 question = st.text_area(
-    "🔎 Ask a medical question (any language):",
+    "🔎 Ask a medical question (English):",
     value=default_q,
     height=80,
-    placeholder="e.g., What are the side effects of metformin? / मेटफॉर्मिन के दुष्प्रभाव क्या हैं?",
+    placeholder="e.g., What are the side effects of metformin?",
 )
 
 col1, col2, col3 = st.columns([1, 1, 3])
@@ -380,6 +377,7 @@ if run_button and question:
         st.warning(f"Cache read error: {e}")
 
     if cached:
+        # ---------- CACHE HIT ----------
         class _V:
             def __init__(self, data):
                 results = data.get("results", []) if isinstance(data, dict) else []
@@ -388,11 +386,16 @@ if run_button and question:
                     1 for r in results if (r.get("verdict") if isinstance(r, dict) else None) == "VERIFIED"
                 )
                 self.total_claims = len(results)
+                self.verification_rate = (
+                    self.verified_count / self.total_claims if self.total_claims else 0.0
+                )
+                self.error_count = 0
 
         class _C:
             def __init__(self, conf):
                 self.status = "PASS"
                 self.overall_score = conf
+                self.issues = []
 
         class CachedResult:
             def __init__(self, data):
@@ -415,11 +418,15 @@ if run_button and question:
                 # claim a perfect score for PASS instead of every decision.
                 self.rules_passed = 6 if decision == "PASS" else 0
                 self.rules = []
+                # FIX v1.2: reasoning is read by the UI when rules is empty,
+                # so we must set it here or every cache hit crashes.
+                self.reasoning = "Loaded from cache — governance rules were evaluated when first answered."
 
         st.session_state.result = CachedResult(cached)
         st.session_state.audit_report = _A(cached["decision"])
         st.session_state.cached = cached
     else:
+        # ---------- CACHE MISS ----------
         with st.spinner("🔄 Running 6-agent pipeline... This takes ~2-3 minutes."):
             try:
                 result = asyncio.run(run_pipeline(question, selected_lang, selected_country))
@@ -433,12 +440,12 @@ if run_button and question:
         # Only cache successful runs — caching an empty/failed result would
         # serve the failure instantly on retry, even after providers recover.
         try:
-            if result.answer.strip():
+            if result.answer.strip() and audit_report.decision in ("PASS", "BLOCKED"):
                 saved = response_cache.set(question, selected_lang, selected_country, result)
                 if saved:
                     st.caption("💾 Answer saved to cache — future identical questions will be instant")
             else:
-                st.caption("⚠️ Empty result not cached — the next attempt will re-run the pipeline")
+                st.caption("⚠️ Empty or refused result not cached — the next attempt will re-run the pipeline")
         except Exception as e:
             st.caption(f"⚠️ Could not save to cache: {e}")
 
@@ -466,6 +473,7 @@ if st.session_state.get("result") is not None:
             f"Asked **{cached['hit_count']}** time(s) before"
         )
 
+    # ---------- TIMELINE ----------
     st.markdown("### ⏱️ Agent Timeline")
     timeline_data = [
         ("🔍 Search Agent", f"{len(result.sources)} sources", result.stage_timings.get("search_ms", 0)),
@@ -487,6 +495,7 @@ if st.session_state.get("result") is not None:
             unsafe_allow_html=True
         )
 
+    # ---------- METRICS ----------
     st.markdown("---")
     c1, c2, c3, c4 = st.columns(4)
     with c1:
@@ -498,7 +507,9 @@ if st.session_state.get("result") is not None:
     with c4:
         st.markdown(f'<div class="metric-card"><div class="metric-value">{audit_report.rules_passed}/6</div><div class="metric-label">Rules Passed</div></div>', unsafe_allow_html=True)
 
+    # ---------- DECISION ----------
     st.markdown("---")
+
     # Distinguish genuine safety refusals from infrastructure failures:
     # empty answer + no claims = nothing was produced — that is
     # "unavailable", not "unsafe".
@@ -513,38 +524,36 @@ if st.session_state.get("result") is not None:
     else:
         st.markdown('<div class="status-refuse">🚫 REFUSED — Answer not safe to display</div>', unsafe_allow_html=True)
 
+    # ---------- ANSWER OR REFUSAL ----------
     if audit_report.decision in ("PASS", "BLOCKED") and not nothing_produced:
         st.markdown("### 📝 Answer")
         st.markdown(result.answer)
 
+        # ---------- VOICE ----------
         st.markdown("### 🔊 Listen to Answer")
-        st.caption("Hear the answer read aloud in your language.")
-
-        try:
-            answer_lang = selected_lang if selected_lang != "auto" else lang_handler.detect_language(result.answer)
-        except Exception:
-            answer_lang = "en"
+        st.caption("Hear the answer read aloud.")
 
         voice_cols = st.columns(3)
         with voice_cols[0]:
-            if st.button("🔊 Original language", key="tts_original", use_container_width=True):
-                with st.spinner("Generating audio..."):
-                    audio_bytes = voice_handler.synthesize(result.answer, answer_lang)
-                    if audio_bytes:
-                        st.audio(audio_bytes, format="audio/mp3", autoplay=True)
-        with voice_cols[1]:
             if st.button("🔊 English", key="tts_en", use_container_width=True):
                 with st.spinner("Generating audio..."):
                     audio_bytes = voice_handler.synthesize(result.answer, "en")
                     if audio_bytes:
                         st.audio(audio_bytes, format="audio/mp3", autoplay=True)
-        with voice_cols[2]:
+        with voice_cols[1]:
             if st.button("🔊 हिन्दी", key="tts_hi", use_container_width=True):
                 with st.spinner("Generating audio..."):
                     audio_bytes = voice_handler.synthesize(result.answer, "hi")
                     if audio_bytes:
                         st.audio(audio_bytes, format="audio/mp3", autoplay=True)
+        with voice_cols[2]:
+            if st.button("🔊 Español", key="tts_es", use_container_width=True):
+                with st.spinner("Generating audio..."):
+                    audio_bytes = voice_handler.synthesize(result.answer, "es")
+                    if audio_bytes:
+                        st.audio(audio_bytes, format="audio/mp3", autoplay=True)
 
+        # ---------- PDF ----------
         st.markdown("### 📄 Download Report")
         st.caption("Download a professional PDF with the answer, sources, verification, and governance report.")
 
@@ -552,7 +561,7 @@ if st.session_state.get("result") is not None:
             pdf_bytes = pdf_generator.generate(
                 result,
                 audit_report,
-                language=selected_lang if selected_lang != "auto" else "en",
+                language="en",
                 country=selected_country,
             )
 
@@ -570,6 +579,7 @@ if st.session_state.get("result") is not None:
         except Exception as e:
             st.warning(f"⚠️ PDF error: {str(e)[:100]}")
 
+        # ---------- VERIFICATION ----------
         with st.expander(f"📊 Verification Report ({result.verification.verified_count}/{result.verification.total_claims} verified)"):
             for v in result.verification.results:
                 if isinstance(v, dict):
@@ -585,6 +595,94 @@ if st.session_state.get("result") is not None:
                     conf = v.confidence
                     evidence = getattr(v, "evidence", "")
 
-                icon = {"VERIFIED": "✅", "PARTIALLY_VERIFIED": "🟡", "NOT_VERIFIED": "🔴", "CONTRADICTED": "⚠️"}.get(verdict, "❓")
+                icon = {"VERIFIED": "✅", "PARTIALLY_VERIFIED": "🟡", "NOT_VERIFIED": "🔴", "CONTRADICTED": "⚠️", "ERROR": "⚪"}.get(verdict, "❓")
                 st.markdown(f"**{icon} Claim {claim_idx + 1}:** {claim_text[:120]}...")
-                st.caption(f"Verdict: {
+                st.caption(f"Verdict: {verdict} ({conf:.2f})")
+                if evidence:
+                    st.caption(f"Evidence: {evidence[:200]}...")
+                st.markdown("---")
+    else:
+        # ---------- REFUSAL / UNAVAILABLE BODY ----------
+        refusal_builder = RefusalBuilder()
+        try:
+            refusal = refusal_builder.build(result, audit_report)
+        except Exception:
+            refusal = type("R", (), {
+                "title": "Refused",
+                "reason": "This question cannot be answered safely.",
+                "details": "Please consult a qualified professional.",
+                "next_steps": ["Consult a doctor"],
+                "trusted_sources": [],
+                "emergency_note": "Call your local emergency number if urgent.",
+            })()
+
+        st.markdown(f"""
+        <div class="refusal-box">
+            <h3 style="color: #f87171;">⚠️ {refusal.title}</h3>
+            <p><strong>Reason:</strong> {refusal.reason}</p>
+            <p><strong>Details:</strong> {refusal.details}</p>
+            <h4>What you can do:</h4>
+            <ol>{''.join(f'<li>{s}</li>' for s in refusal.next_steps)}</ol>
+            <h4>Trusted sources:</h4>
+            <ul>{''.join(f'<li><a href="{s["url"]}" target="_blank">{s["name"]}</a> — {s["why"]}</li>' for s in refusal.trusted_sources)}</ul>
+            <p style="color: #f87171;"><strong>🚨 {refusal.emergency_note}</strong></p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ---------- GOVERNANCE ----------
+    st.markdown("---")
+    st.markdown("### 🛡️ Governance Report")
+    if audit_report.rules:
+        for rule in audit_report.rules:
+            icon = "✅" if rule.passed else "❌"
+            with st.expander(f"{icon} {rule.rule_id}: {rule.name}"):
+                st.write(f"**Actual:** {rule.actual_value}")
+                st.write(f"**Threshold:** {rule.threshold}")
+                st.write(f"**Severity:** {rule.severity}")
+                if rule.message:
+                    st.write(f"**Message:** {rule.message}")
+    else:
+        st.caption(f"Audit Gate decision: **{audit_report.decision}**")
+        st.caption(audit_report.reasoning)
+
+    # ---------- EVIDENCE GRAPH ----------
+    if result.claims:
+        st.markdown("---")
+        st.markdown("### 🕸️ Evidence Graph")
+        builder = EvidenceGraphBuilder()
+        try:
+            graph = builder.build(result)
+            ca, cb, cc = st.columns(3)
+            with ca:
+                st.metric("Claims", graph.stats["total_claims"])
+            with cb:
+                st.metric("Sources", graph.stats["total_sources"])
+            with cc:
+                st.metric("Citations", graph.stats["total_edges"])
+
+            st.markdown("**Claims → Sources**")
+            claim_to_sources = {}
+            for edge in graph.edges:
+                claim_to_sources.setdefault(edge.source_id, []).append(edge.target_id)
+            for i, claim in enumerate(result.claims[:10]):
+                cid = f"claim_{i+1}"
+                sources = claim_to_sources.get(cid, [])
+                if sources:
+                    claim_text = claim.text if hasattr(claim, "text") else str(claim)
+                    with st.expander(f"Claim {i+1}: {claim_text[:80]}..."):
+                        st.write(f"**Full claim:** {claim_text}")
+                        st.write(f"**Supported by:** {len(sources)} source(s)")
+        except Exception as e:
+            st.caption(f"Evidence graph unavailable: {str(e)[:80]}")
+
+    st.caption(f"Total: {len(result.claims)} claims connected to {len(result.sources)} sources")
+    st.markdown("---")
+    st.caption(f"⚠️ {result.disclaimer}")
+
+
+# ============================================================
+# FOOTER
+# ============================================================
+
+st.markdown("---")
+st.caption("MedResearch AI — Built by Ayush Nandan | [GitHub](https://github.com/Ayush-5787/medresearch-ai)")
