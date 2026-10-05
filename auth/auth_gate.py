@@ -1,235 +1,90 @@
 """
-MedResearch AI — Audit Gate
-The governance layer. Enforces deterministic rules before answers reach users.
-
-Rules:
-1. All claims must have sources
-2. Verification rate ≥ 90%
-3. Overall confidence ≥ 0.70
-4. No unsafe language
-5. Medical disclaimer present
-6. Answer has substance (≥ 200 chars)
-
-Decision:
-- All pass → PASS
-- 1-2 failures → BLOCKED
-- 3+ failures or critical → REFUSED
-- Nothing produced (empty answer + no claims) → UNAVAILABLE
-  (infrastructure failure — not a safety judgement)
+MedResearch AI — Auth gate (Streamlit UI for login/signup).
 """
 
-import re
-from typing import List
-from core.schemas import FinalResult, AuditRule, AuditReport
+import streamlit as st
+from pathlib import Path
+from auth.user_manager import create_user, authenticate, get_user_count
 
 
-# Phrases that must NEVER appear (legal compliance)
-UNSAFE_PHRASES = [
-    "you should take",
-    "you must take",
-    "i prescribe",
-    "take this medicine",
-    "stop taking",
-    "you have been diagnosed",
-    "you are diagnosed",
-    "my recommendation",
-    "definitely cure",
-    "guaranteed cure",
-    "will cure",
-]
+def init_session():
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+    if "user" not in st.session_state:
+        st.session_state.user = None
 
 
-class AuditGate:
-    """
-    Deterministic governance layer.
-    No LLM calls — pure rules for speed and predictability.
-    """
+def logout():
+    st.session_state.authenticated = False
+    st.session_state.user = None
+    st.rerun()
 
-    # Thresholds
-    MIN_VERIFICATION_RATE = 0.9
-    MIN_CONFIDENCE = 0.7
-    MIN_ANSWER_LENGTH = 200
-    MIN_SOURCES = 1
 
-    def evaluate(self, result: FinalResult) -> AuditReport:
-        """Run all governance rules and produce a report."""
-        # ---- EARLY EXIT: nothing produced (infrastructure failure) ----
-        # An empty answer with no claims means the pipeline could not
-        # complete (e.g. LLM providers down, or an upstream refusal such
-        # as unsupported language). That is "unavailable", not "unsafe" —
-        # scoring empty content misreports it as a safety refusal.
-        if not result.answer.strip() and len(result.claims) == 0:
-            upstream = (getattr(result, "reasoning", "") or "").strip()
-            if upstream:
-                reasoning = (
-                    "Research could not complete — no answer was produced. "
-                    f"Pipeline reason: {upstream}."
-                )
-            else:
-                reasoning = (
-                    "Research could not complete — no answer was produced "
-                    "(LLM providers unreachable). Nothing to audit."
-                )
-            return AuditReport(
-                rules=[],
-                rules_passed=0,
-                rules_failed=0,
-                critical_failures=0,
-                decision="UNAVAILABLE",
-                reasoning=reasoning,
-                safe_to_display=False,
-            )
+def render_login_screen():
+    init_session()
 
-        rules: List[AuditRule] = []
+    col1, col2, col3 = st.columns([1, 2, 1])
 
-        rules.append(self._check_claim_sources(result))
-        rules.append(self._check_verification_rate(result))
-        rules.append(self._check_confidence(result))
-        rules.append(self._check_unsafe_language(result))
-        rules.append(self._check_disclaimer(result))
-        rules.append(self._check_answer_length(result))
+    with col2:
+        logo_path = Path(__file__).parent.parent / "docs" / "logo.png"
+        if logo_path.exists():
+            st.image(str(logo_path), width=120)
 
-        passed = sum(1 for r in rules if r.passed)
-        failed = len(rules) - passed
-        critical = sum(1 for r in rules if not r.passed and r.severity == "CRITICAL")
-
-        if failed == 0:
-            decision = "PASS"
-            reasoning = "All governance rules passed. Answer is compliant."
-            safe = True
-        elif critical > 0 or failed >= 3:
-            decision = "REFUSED"
-            reasoning = f"{failed} rules failed (including {critical} critical). Answer not safe to display."
-            safe = False
-        else:
-            decision = "BLOCKED"
-            reasoning = f"{failed} rule(s) failed. Answer shown with warnings."
-            safe = True
-
-        return AuditReport(
-            rules=rules,
-            rules_passed=passed,
-            rules_failed=failed,
-            critical_failures=critical,
-            decision=decision,
-            reasoning=reasoning,
-            safe_to_display=safe,
+        st.markdown(
+            "<div style='text-align:center;padding:1rem 0;'>"
+            "<h1 style='color:#00d4ff;font-size:2rem;margin-bottom:0.3rem;'>MedResearch AI</h1>"
+            "<p style='color:#888;font-size:0.95rem;'>Sign in to access the governed research system</p>"
+            "</div>",
+            unsafe_allow_html=True,
         )
 
-    # ==========================================================
-    # RULE CHECKS
-    # ==========================================================
+        st.markdown("---")
 
-    def _check_claim_sources(self, result: FinalResult) -> AuditRule:
-        if not result.claims:
-            return AuditRule(
-                rule_id="RULE_1",
-                name="All claims have sources",
-                passed=False,
-                actual_value="0 claims",
-                threshold="≥ 1 claim with source",
-                severity="CRITICAL",
-                message="Answer has no claims to verify.",
-            )
+        tab1, tab2 = st.tabs(["🔑 Login", "✨ Sign Up"])
 
-        without_source = sum(1 for c in result.claims if not c.source_urls)
-        passed = without_source == 0
+        with tab1:
+            with st.form("login_form"):
+                st.markdown("### Welcome back")
+                username = st.text_input("Username", key="login_username")
+                password = st.text_input("Password", type="password", key="login_password")
+                submit = st.form_submit_button("🔑 Log In", use_container_width=True, type="primary")
 
-        return AuditRule(
-            rule_id="RULE_1",
-            name="All claims have sources",
-            passed=passed,
-            actual_value=f"{len(result.claims) - without_source}/{len(result.claims)} claims sourced",
-            threshold="100%",
-            severity="CRITICAL",
-            message="" if passed else f"{without_source} claims lack sources.",
-        )
+                if submit:
+                    if not username or not password:
+                        st.error("Please enter both username and password")
+                    else:
+                        user = authenticate(username, password)
+                        if user:
+                            st.session_state.authenticated = True
+                            st.session_state.user = user
+                            st.success("Welcome back, " + user["username"] + "!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Invalid username or password")
 
-    def _check_verification_rate(self, result: FinalResult) -> AuditRule:
-        if not result.verification:
-            return AuditRule(
-                rule_id="RULE_2",
-                name="Verification rate",
-                passed=False,
-                actual_value="no verification data",
-                threshold=f"≥ {self.MIN_VERIFICATION_RATE:.0%}",
-                severity="CRITICAL",
-                message="No verification performed.",
-            )
+        with tab2:
+            with st.form("signup_form"):
+                st.markdown("### Create your account")
+                new_username = st.text_input("Username", key="signup_username", help="Min 3 characters")
+                new_email = st.text_input("Email", key="signup_email")
+                new_password = st.text_input("Password", type="password", key="signup_password", help="Min 6 characters")
+                confirm_password = st.text_input("Confirm Password", type="password", key="signup_confirm")
+                submit = st.form_submit_button("✨ Create Account", use_container_width=True, type="primary")
 
-        rate = result.verification.verification_rate
-        passed = rate >= self.MIN_VERIFICATION_RATE
+                if submit:
+                    if new_password != confirm_password:
+                        st.error("❌ Passwords do not match")
+                    elif not all([new_username, new_email, new_password]):
+                        st.error("Please fill in all fields")
+                    else:
+                        result = create_user(new_username, new_email, new_password)
+                        if result["success"]:
+                            st.success("✅ Account created! Please log in.")
+                            st.balloons()
+                        else:
+                            st.error("❌ " + result["error"])
 
-        return AuditRule(
-            rule_id="RULE_2",
-            name="Verification rate",
-            passed=passed,
-            actual_value=f"{rate:.0%}",
-            threshold=f"≥ {self.MIN_VERIFICATION_RATE:.0%}",
-            severity="CRITICAL",
-            message="" if passed else f"Only {rate:.0%} of claims verified.",
-        )
+        st.markdown("---")
+        st.caption("👥 " + str(get_user_count()) + " users registered · 🔒 Passwords secured with bcrypt")
 
-    def _check_confidence(self, result: FinalResult) -> AuditRule:
-        conf = result.confidence
-        passed = conf >= self.MIN_CONFIDENCE
-
-        return AuditRule(
-            rule_id="RULE_3",
-            name="Overall confidence",
-            passed=passed,
-            actual_value=f"{conf:.2f}",
-            threshold=f"≥ {self.MIN_CONFIDENCE}",
-            severity="MAJOR",
-            message="" if passed else f"Confidence {conf:.2f} below threshold.",
-        )
-
-    def _check_unsafe_language(self, result: FinalResult) -> AuditRule:
-        text_lower = result.answer.lower()
-        found = [phrase for phrase in UNSAFE_PHRASES if phrase in text_lower]
-
-        passed = len(found) == 0
-
-        return AuditRule(
-            rule_id="RULE_4",
-            name="No unsafe language",
-            passed=passed,
-            actual_value=f"{len(found)} violations" if found else "clean",
-            threshold="0 violations",
-            severity="CRITICAL",
-            message="" if passed else f"Found: {', '.join(found[:3])}",
-        )
-
-    def _check_disclaimer(self, result: FinalResult) -> AuditRule:
-        text_lower = result.answer.lower()
-        has_disclaimer = (
-            "consult" in text_lower
-            and ("doctor" in text_lower or "physician" in text_lower or "medical professional" in text_lower)
-        ) or "disclaimer" in text_lower or "for research purposes" in text_lower
-
-        return AuditRule(
-            rule_id="RULE_5",
-            name="Medical disclaimer present",
-            passed=has_disclaimer,
-            actual_value="present" if has_disclaimer else "missing",
-            threshold="required",
-            severity="MAJOR",
-            message="" if has_disclaimer else "Answer lacks a medical disclaimer.",
-        )
-
-    def _check_answer_length(self, result: FinalResult) -> AuditRule:
-        length = len(result.answer)
-        passed = length >= self.MIN_ANSWER_LENGTH
-
-        return AuditRule(
-            rule_id="RULE_6",
-            name="Answer has substance",
-            passed=passed,
-            actual_value=f"{length} chars",
-            threshold=f"≥ {self.MIN_ANSWER_LENGTH} chars",
-            severity="MAJOR",
-            message="" if passed else f"Answer too short ({length} chars).",
-        )
-
-
-print("[audit_gate] AuditGate loaded (v1.1: UNAVAILABLE for empty results)")
+    return st.session_state.get("authenticated", False)
