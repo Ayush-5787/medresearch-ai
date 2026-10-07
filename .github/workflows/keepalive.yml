@@ -6,4 +6,4 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -s https://YOUR-REAL-URL/_stcore/health
+      - run: curl -s https://medresearch-ai.onrender.com/_stcore/health
